@@ -137,6 +137,8 @@
     <div class="content" v-pre>
         <h2 id="树与二分图"><a href="#树与二分图" class="headerlink" title="树与二分图"></a>树与二分图</h2><h4 id="—-2022-RoboCom-世界机器人开发者大赛-本科组（省赛）"><a href="#—-2022-RoboCom-世界机器人开发者大赛-本科组（省赛）" class="headerlink" title="-— 2022 RoboCom 世界机器人开发者大赛-本科组（省赛）"></a>-— 2022 RoboCom 世界机器人开发者大赛-本科组（省赛）</h4><p>​	有点小遗憾，倒数第二题卡了半天最后也没写完，最后这道题只混了十五分，以2分之差没能冲进省一。</p>
 <p>现在来看这题其实就是一个简单的二分图。我们只需要统计出两边的点数a和b，然后a b相乘减去（n - 1）就是答案了。</p>
+<span id="more"></span>
+
 <p>以样例来看左边共5个点，右边有2个点，二分图一共可以建10条边，题目已经帮我们建好了6条，所以我们最多只能建4条边。（个人建议：比赛的时候不要使用万能头。）</p>
 <p><img src="https://img-blog.csdnimg.cn/7ebc4679fca448dfbe29fa00a7185861.png" alt="img"><img src="data:image/gif;base64,R0lGODlhAQABAPABAP///wAAACH5BAEKAAAALAAAAAABAAEAAAICRAEAOw==" alt="点击并拖拽以移动"></p>
 <p>设 G&#x3D;(V,E) 是一个无向图，如果顶点集合 V 可分割为两个互不相交的子集 (A,B)，并且每条边 (i,j)∈E 的两个端点 i 和 j 分别属于这两个不同的顶点子集，则称图 G 为一个二分图。</p>

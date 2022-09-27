@@ -161,86 +161,6 @@
             
             <h2 id="树与二分图"><a href="#树与二分图" class="headerlink" title="树与二分图"></a>树与二分图</h2><h4 id="—-2022-RoboCom-世界机器人开发者大赛-本科组（省赛）"><a href="#—-2022-RoboCom-世界机器人开发者大赛-本科组（省赛）" class="headerlink" title="-— 2022 RoboCom 世界机器人开发者大赛-本科组（省赛）"></a>-— 2022 RoboCom 世界机器人开发者大赛-本科组（省赛）</h4><p>​	有点小遗憾，倒数第二题卡了半天最后也没写完，最后这道题只混了十五分，以2分之差没能冲进省一。</p>
 <p>现在来看这题其实就是一个简单的二分图。我们只需要统计出两边的点数a和b，然后a b相乘减去（n - 1）就是答案了。</p>
-<p>以样例来看左边共5个点，右边有2个点，二分图一共可以建10条边，题目已经帮我们建好了6条，所以我们最多只能建4条边。（个人建议：比赛的时候不要使用万能头。）</p>
-<p><img src="https://img-blog.csdnimg.cn/7ebc4679fca448dfbe29fa00a7185861.png" alt="img"><img src="data:image/gif;base64,R0lGODlhAQABAPABAP///wAAACH5BAEKAAAALAAAAAABAAEAAAICRAEAOw==" alt="点击并拖拽以移动"></p>
-<p>设 G&#x3D;(V,E) 是一个无向图，如果顶点集合 V 可分割为两个互不相交的子集 (A,B)，并且每条边 (i,j)∈E 的两个端点 i 和 j 分别属于这两个不同的顶点子集，则称图 G 为一个二分图。</p>
-<p>现在给定一棵树 T，要求选择树中两个<strong>没有边相连</strong>的结点 i 和 j，使得将无向边 (i,j) 加进 T 后能够构成二分图。你的任务是计算满足这个要求的选择方案有多少种。</p>
-<h3 id="输入格式"><a href="#输入格式" class="headerlink" title="输入格式:"></a>输入格式:</h3><p>输入第一行给出一个正整数 N (2≤N≤106)，表示树中结点的个数。</p>
-<p>接下来 N−1 行，每行给出树中一条边的两端结点编号，以空格分隔。结点编号从 1 开始。题目保证输入给出的是一棵树中所有的边。</p>
-<h3 id="输出格式"><a href="#输出格式" class="headerlink" title="输出格式:"></a>输出格式:</h3><p>在一行中输出方案数。注意：连接 (1,2) 和 (2,1) 视作同一个方案。</p>
-<h3 id="输入样例"><a href="#输入样例" class="headerlink" title="输入样例:"></a>输入样例:</h3><pre><code>7
-1 2
-2 3
-2 4
-2 5
-2 6
-4 7
-</code></pre>
-<p><img src="data:image/gif;base64,R0lGODlhAQABAPABAP///wAAACH5BAEKAAAALAAAAAABAAEAAAICRAEAOw==" alt="点击并拖拽以移动"></p>
-<h3 id="输出样例"><a href="#输出样例" class="headerlink" title="输出样例:"></a>输出样例:</h3><pre><code>4
-</code></pre>
-<p><img src="data:image/gif;base64,R0lGODlhAQABAPABAP///wAAACH5BAEKAAAALAAAAAABAAEAAAICRAEAOw==" alt="点击并拖拽以移动"></p>
-<p>代码长度限制</p>
-<p>16 KB</p>
-<p>Java (javac)</p>
-<p>时间限制</p>
-<p>1300 ms</p>
-<p>内存限制</p>
-<p>512 MB</p>
-<p>其他编译器</p>
-<p>时间限制</p>
-<p>500 ms</p>
-<p>内存限制</p>
-<p>64 MB</p>
-<p>代码如下：</p>
-<pre><code class="c++">#include &lt;iostream&gt;
-#include &lt;cstring&gt;
-#include &lt;algorithm&gt;
-
-using namespace std ;
-typedef long long LL ;
-const int N = 1000010 , M = N * 2 ;
-LL n , x , y ;//因为数据范围1e6 相乘会爆int
-int h[N] , e[M] , ne[M] , idx , col[N] ;//数组模拟链表来存储边
-
-void add(int a , int b)
-&#123;
-    e[idx] = b , ne[idx] = h[a] , h[a] = idx ++ ;
-&#125;
-void dfs(int u , int c)
-&#123;
-    col[u] = c ;
-    if(c == 1) x ++ ;
-    else y ++ ;
-    
-    for(int i = h[u] ; ~i ; i = ne[i])
-    &#123;
-        int j = e[i] ;
-        if(!col[j]) dfs(j , 3 - c) ;//没有染色的点染色
-    &#125;
-    
-    return ;
-&#125;
-
-int main()
-&#123;
-    cin &gt;&gt; n ;
-    memset(h , -1 , sizeof h) ;
-    for(int i = 1 ; i &lt;= n - 1 ; i ++)
-    &#123;
-        int a , b ;
-        cin &gt;&gt; a &gt;&gt; b ;
-        add(a , b) , add(b , a) ;//无向边
-    &#125;
-    
-    for(int i = 1 ; i &lt;= n ; i ++)
-        if(!col[i]) dfs(i , 1) ;//左边标记为1，右边标记为2
-    
-    cout &lt;&lt; x * y - n + 1 &lt;&lt; endl ;
-    return 0 ;
-&#125;
-</code></pre>
-
             
         </div>
     </div>
@@ -268,21 +188,6 @@ int main()
         <div class="content" v-pre>
             
             <p>Welcome to Anthony ‘s home. This is your very first post. Check <a target="_blank" rel="noopener" href="https://hexo.io/docs/">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a target="_blank" rel="noopener" href="https://hexo.io/docs/troubleshooting.html">troubleshooting</a> or you can ask me on <a target="_blank" rel="noopener" href="https://github.com/hexojs/hexo/issues">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><pre><code class="bash">$ hexo new &quot;My New Post&quot;
-</code></pre>
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/writing.html">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><pre><code class="bash">$ hexo server
-</code></pre>
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/server.html">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><pre><code class="bash">$ hexo generate
-</code></pre>
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/generating.html">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><pre><code class="bash">$ hexo deploy
-</code></pre>
-<p>More info: <a target="_blank" rel="noopener" href="https://hexo.io/docs/one-command-deployment.html">Deployment</a></p>
-<h3 id="更新日志："><a href="#更新日志：" class="headerlink" title="更新日志："></a>更新日志：</h3><p>2022.9.26 完成博客配置</p>
-<p>2022.9.27 博客初始化成功</p>
-
             
         </div>
     </div>
