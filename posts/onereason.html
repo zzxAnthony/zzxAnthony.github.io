@@ -20,11 +20,68 @@
         <p class="eyebrow">WRITING / 模型推理</p>
         <h1>OneReason 技术分析报告</h1>
         <p class="lead">1. 论文概述论文提出 OneReason，核心目标是让推荐模型真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点： 感知能力：模型必须理解 itemic token 背后的语义，不能只把物品 token 当成离散 ID。认知能力：模型…</p>
-        <div class="article-meta"><span>模型推理</span><span>zzx</span><time datetime="2026-07-04">2026.07.04</time><span>4 MIN READ</span></div>
+        <div class="article-meta"><span>模型推理</span><span>zzx</span><time datetime="2026-07-04">2026.07.04</time><span>6 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2056780687726981663" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><h3>1. 论文概述</h3><p>论文提出 OneReason，核心目标是让推荐模型真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点：</p><ol><li>感知能力：模型必须理解 itemic token 背后的语义，不能只把物品 token 当成离散 ID。</li><li>认知能力：模型必须能把用户历史行为压缩成清晰的兴趣点，并判断兴趣如何演化到下一个推荐目标。</li></ol><p>因此，OneReason 的技术路线可以概括为：先做 item-token 与文本语义的深度对齐，再用结构化 CoT 训练推荐推理，最后通过面向推荐目标的强化学习提升 thinking 模式效果。</p><h3>2. 核心思想</h3><p>传统生成式推荐把用户行为序列建模为 item token 的下一个 token 预测，本质上更像学习“行为转移规律”。这种方式有规模化优势，但缺少可解释的中间思考过程。</p><p>OneReason 的判断是：推荐任务中的推理不是数学题式的严格演绎，而是溯因式推理。模型需要根据用户过往行为，假设用户可能的潜在兴趣，再判断哪些兴趣更可能延续、变化或转移。例如，用户近期看了装修材料、搜索了地板价格，又浏览了床品内容，模型需要推断其兴趣可能从“硬装成本”</p></div>
-      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+      <div class="article-body"><h2>1. 论文概述</h2>
+<p>本文研究的是生成式推荐模型中的“推理能力”问题。已有 OneRec 系列模型已经证明，大规模预训练可以提升推荐效果，但直接套用大语言模型中的 Chain-of-Thought（CoT）并不一定有效：模型虽然会生成一段“思考过程”，但推荐结果未必优于不思考的直接生成模式。</p>
+<p>论文提出 OneReason，核心目标是让推荐模型真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点：</p>
+<ol>
+<li>感知能力：模型必须理解 itemic token 背后的语义，不能只把物品 token 当成离散 ID。</li>
+<li>认知能力：模型必须能把用户历史行为压缩成清晰的兴趣点，并判断兴趣如何演化到下一个推荐目标。</li>
+</ol>
+<p>因此，OneReason 的技术路线可以概括为：先做 item-token 与文本语义的深度对齐，再用结构化 CoT 训练推荐推理，最后通过面向推荐目标的强化学习提升 thinking 模式效果。</p>
+<h2>2. 核心思想</h2>
+<p>传统生成式推荐把用户行为序列建模为 item token 的下一个 token 预测，本质上更像学习“行为转移规律”。这种方式有规模化优势，但缺少可解释的中间思考过程。</p>
+<p>OneReason 的判断是：推荐任务中的推理不是数学题式的严格演绎，而是溯因式推理。模型需要根据用户过往行为，假设用户可能的潜在兴趣，再判断哪些兴趣更可能延续、变化或转移。例如，用户近期看了装修材料、搜索了地板价格，又浏览了床品内容，模型需要推断其兴趣可能从“硬装成本”扩展到“整体家居布置”。</p>
+<p>所以，好的推荐 CoT 不应只是泛泛解释“用户喜欢这个”，而应包含三个步骤：</p>
+<ol>
+<li>用户画像抽象：提取长期稳定偏好、消费能力、内容偏好等软先验。</li>
+<li>兴趣扩展：从历史行为中找出若干有证据支撑的兴趣方向。</li>
+<li>转移判断：根据时效性、行为强度、领域匹配和上下文，选择最可能的下一兴趣。</li>
+</ol>
+<p>这使推荐模型从“记住相似行为”转向“理解用户兴趣结构”。</p>
+<h2>3. 方法设计</h2>
+<h3>3.1 预训练：建立 itemic token 的语义感知</h3>
+<p>OneReason 使用 itemic token 表示物品。每个物品由一个领域起始 token 和三个子 token 组成，例如：</p>
+<pre><code class="language-text">&lt;|video_begin|&gt;&lt;a_5028&gt;&lt;b_6733&gt;&lt;c_2559&gt;
+</code></pre>
+<p>这种表示紧凑，适合生成式推荐，但问题是 token 本身不天然具有语言语义。为此，论文设计了四个粒度的预训练数据：</p>
+<ol>
+<li>Token 粒度：学习单个子 token 或 token 前缀的语义。</li>
+<li>Item 粒度：学习完整 itemic pattern 与物品描述之间的双向映射。</li>
+<li>Relation 粒度：学习物品之间的关联与兴趣转移逻辑。</li>
+<li>User 粒度：学习用户画像、跨域行为序列和时间线中的兴趣变化。</li>
+</ol>
+<p>这一步的本质是让模型知道“这些离散 token 到底代表什么”，并让 item token 与自然语言处在可互相解释的语义空间中。</p>
+<h3>3.2 SFT：构造推荐认知能力</h3>
+<p>SFT 阶段围绕 R0 到 R3 四层能力展开：</p>
+<ol>
+<li>R0 Perception：理解物品 token 的语义，能生成描述或回答内容问题。</li>
+<li>R1 Derivation：理解物品到物品的关系，例如从一个视频推导出可能相关的商品或视频。</li>
+<li>R2 Evolution：理解用户兴趣如何随时间演化。</li>
+<li>R3 Recommendation：综合画像、历史行为和兴趣演化，生成推荐结果。</li>
+</ol>
+<p>其中 R3 是最关键的推荐 CoT。论文没有让模型直接对长历史做自由发挥，而是要求它先压缩信息，再推理转移方向。这种设计可以减少历史行为噪声，避免 CoT 变成长篇但无效的解释。</p>
+<h3>3.3 RL：先专门化，再统一</h3>
+<p>论文发现，直接在多业务混合数据上做强化学习时，thinking 模式不一定稳定优于 non-thinking 模式；但如果在单个领域内训练，thinking 的优势更明显。</p>
+<p>因此 OneReason 采用 specialize-then-unify 策略：</p>
+<ol>
+<li>先分别在视频、商品、广告、直播等领域做领域专门化 RL。</li>
+<li>再通过 RFT 或多教师蒸馏把各领域能力合并到统一模型中。</li>
+</ol>
+<p>强化学习的奖励不仅看是否命中真实 item，还考虑候选多样性。论文还区分 reasoning token 和 item token 的优化强度，避免推理部分和最终推荐 token 被同一种更新规则粗暴处理。</p>
+<h2>4. 实验结论</h2>
+<p>实验结果表明，OneReason RFT 在跨域推荐上明显优于 Qwen3-8B、LC-Rec 以及 SFT 版本。在最终 RFT 模型中，thinking 模式在多个推荐任务上超过 non-thinking 模式，这是论文最重要的结果之一：结构化推理确实可以转化为推荐性能收益。</p>
+<p>论文还观察到一个有意思的现象：即使推理时不输出 CoT，只要训练阶段加入合适比例的 CoT 数据，non-thinking 推荐也可能提升。这说明 CoT 监督不仅教模型“怎么说出推理过程”，也可能把用户兴趣压缩、证据选择和转移判断能力写入模型参数中。不过论文也强调，CoT 不是越多越好，过多 CoT 会降低最终答案监督密度，并带来格式不匹配。</p>
+<p>在线部署方面，OneReason 采用 Fast-Slow Thinking 架构：慢速近线链路用 OneReason 生成高质量候选，快速在线链路继续使用实时推荐系统，并通过排序融合保证延迟可控。在线 A/B 实验中，OneReason 单独使用带来 Revenue +4.528%，OneReason for OneRec 带来 Revenue +4.636%，联合部署达到 Revenue +8.234%。</p>
+<h2>5. 技术价值与不足</h2>
+<p>OneReason 的主要价值在于，它把 LLM 中的推理范式改造成了适合推荐系统的形式。它没有简单照搬“让模型多想几步”，而是先解决 item token 的语义感知，再设计推荐专用的压缩与转移推理链，最后用面向推荐命中的 RL 对 thinking 模式进行强化。</p>
+<p>不过，该方法也存在成本和工程复杂度。首先，构造高质量 CoT、关系数据和兴趣演化数据依赖强 LLM 与大量规则过滤。其次，thinking 推理本身带来更高延迟，因此线上需要近线部署或蒸馏到快速模型。最后，论文虽然发现 CoT 监督能提升 non-thinking，但还不能严格区分收益来自“信息压缩”还是“真正推理”。</p>
+<h2>6. 总结</h2>
+<p>OneReason 的核心思想是：推荐模型要想真正“推理”，必须先能看懂 item token，再能把用户历史压缩成可操作的兴趣状态，并通过结构化 CoT 判断兴趣转移。它的贡献不只是提出一个新模型，而是给出了生成式推荐从规模化建模走向推理式推荐的一套完整训练和部署路径。</p>
+<p>简言之，OneReason 证明了推荐系统中的 reasoning 不能靠简单生成解释获得，而需要“语义对齐 + 结构化认知 + 推荐目标强化”三者共同作用。</p>
+<div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>

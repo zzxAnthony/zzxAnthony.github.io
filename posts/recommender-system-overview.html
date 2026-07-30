@@ -20,10 +20,11 @@
         <p class="eyebrow">WRITING / 推荐系统</p>
         <h1>一文了解推荐系统全貌</h1>
         <p class="lead">1. 模型地图协同过滤/召回 ItemCF -&gt; MF -&gt; DSSM/双塔 -&gt; YouTubeDNN -&gt; MIND/ComiRec -&gt; 生成式召回 CTR 特征交互 LR -&gt; FM/FFM -&gt; Wide&amp;Deep -&gt; PNN/NFM/DeepFM -&gt; DCN/DCNv2 -&gt; xDeepFM/AutoI</p>
-        <div class="article-meta"><span>推荐系统</span><span>zzx</span><time datetime="2026-07-13">2026.07.13</time><span>37 MIN READ</span></div>
+        <div class="article-meta"><span>推荐系统</span><span>zzx</span><time datetime="2026-07-13">2026.07.13</time><span>136 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2060050436871165893" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><h2>1. 模型地图</h2><div><pre><div><pre><code class="language-text">协同过滤/召回
+      <div class="article-body"><h2>1. 一张模型地图</h2>
+<pre><code class="language-text">协同过滤/召回
 ItemCF -&gt; MF -&gt; DSSM/双塔 -&gt; YouTubeDNN -&gt; MIND/ComiRec -&gt; 生成式召回
 
 CTR 特征交互
@@ -39,8 +40,1552 @@ Shared-Bottom -&gt; ESMM
               -&gt; MMoE -&gt; PLE/SNR
 
 生成式推荐
-SASRec/BERT4Rec -&gt; TIGER/Semantic ID -&gt; HSTU/OneRec/ReSID/OneReason</code></pre></div></pre></div><h3>2. 核心概念</h3><h3>2.1 召回、粗排、精排、重排</h3><ul><li><b>召回</b>：从百万到亿级候选中找几百到几千个，优先覆盖与吞吐；</li><li><b>粗排</b>：用较低成本模型压缩候选，兼顾精排一致性；</li><li><b>精排</b>：复杂特征交互、序列建模、多任务预估；</li><li><b>重排/混排</b>：加入多样性、频控、广告密度、预算、拍卖和长期体验约束。</li></ul><p>同一个模型是否合适，取决于阶段。DIN 对每个候选做 target attention，精排可接受，亿级召回不可接受；双塔可做 ANN 召回，但细粒度交叉能力较弱。</p><h3>2.2 显式交互与隐式交互</h3><ul><li><b>显式</b>：结构保证特定阶数或形式的交叉，例如 FM 二阶项、DCN Cross Layer、xDeepFM CIN；</li><li><b>隐式</b>：MLP 理论上能拟合交互，但没有明确交叉结构，例如 Wide&amp;Deep 的 deep 部分；</li><li><b>向量级交互</b>：保留 embedding 各维结构，如 CIN；</li><li><b>bit-wise 交互</b>：拼接后由 MLP 在单维层面混合。</li></ul><h3>2.3 Target-aware 与 Target-agnostic</h3><ul><li><b>Target-aware，目标感知</b>：目标候选参与用户兴趣提取。同一段历史面对不同广告会得到不同用户表示，例如 DIN 会用目标广告查询历史行为。它表达更精确，但每换一个候选都可能重算。</li><li><b>Target-agnostic，目标无关</b>：先得到与候选无关的固定用户向量，再与不同候选打分，例如双塔。用户向量可以缓存，适合大规模召回，但难以描述“用户对这个候选具体感兴趣在哪里”。</li></ul><h3>2.4 排序能力与概率校准</h3><p>AUC 高只说明正负样本相对顺序较好。广告出价需要概率绝对值，因此还要看 LogLoss、NE、ECE、分桶真实率/预测率，并做下采样先验修正或后校准。</p><h3>2.5 名词解释</h3><h3>2.5.1 Embedding、Field</h3><ul><li><b>Embedding，嵌入表示</b>：把离散 ID 或类别映射为可训练的低维稠密向量。例如广告 ID 可能有上亿种，不能直接使用同样长度的 one-hot 向量，因而用查表方式取出 <figure><img src="https://www.zhihu.com/equation?tex=d" alt="d" loading="lazy"></figure> 维向量。相似广告在训练后通常会落在相近的向量区域。</li><li><b>Field，特征域</b>：一组语义相同、只取一个或少量值的特征位置，例如“用户城市”“广告行业”“设备类型”。FM、FFM、AutoInt 常以 field 为交互单位。</li><li><b>One-hot，独热编码</b>：长度等于类别总数，仅当前类别位置为 1，其余为 0。它没有类别相似性，且维度极高；Embedding 本质上等价于用 one-hot 向量从参数矩阵中取一行。</li></ul><h3>2.5.2 Pooling、Attention 与 Gate</h3><ul><li><b>Pooling，池化或聚合</b>：把数量可变的一组向量变成固定长度向量。Sum Pooling 是求和，Mean Pooling 是求平均，Max Pooling 是逐维取最大值。简单池化不区分历史行为的重要性。</li><li><b>Attention，注意力机制</b>：根据“查询向量”和每个候选元素的匹配程度计算权重，再加权求和。它回答的是“当前任务下应该重点看哪些输入”。</li><li><b>Self-Attention，自注意力</b>：同一序列内部各位置相互查询，用于建模行为之间的依赖。例如“先搜索相机，再浏览镜头”具有组合意义。</li><li><b>Cross-Attention，交叉注意力</b>：一组向量作为查询，另一组向量提供键和值。例如目标广告作为查询，从用户历史中提取相关兴趣。</li><li><b>Gate，门控</b>：产生 0 到 1 或归一化权重，决定信息通过多少。门控可用于融合短期与长期兴趣，也可在 MMoE 中为不同任务选择专家。</li><li><b>Target Attention，目标注意力</b>：目标候选参与权重计算，是 Cross-Attention 在推荐中的常见形式。DIN 的“局部激活单元”就属于目标注意力。</li></ul><p>标准缩放点积注意力为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Coperatorname%7BAttention%7D%28Q%2CK%2CV%29+%3D%5Coperatorname%7Bsoftmax%7D%5C%21%5Cleft%28%5Cfrac%7BQK%5E%7B%5Cmathsf+T%7D%7D%7B%5Csqrt+d%7D%5Cright%29V.+" alt=" \operatorname{Attention}(Q,K,V) =\operatorname{softmax}\!\left(\frac{QK^{\mathsf T}}{\sqrt d}\right)V. " loading="lazy"></figure></p><p>其中 <figure><img src="https://www.zhihu.com/equation?tex=Q" alt="Q" loading="lazy"></figure> 是查询矩阵，<figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure> 是键矩阵，<figure><img src="https://www.zhihu.com/equation?tex=V" alt="V" loading="lazy"></figure> 是值矩阵，<figure><img src="https://www.zhihu.com/equation?tex=d" alt="d" loading="lazy"></figure> 是键向量维度。除以 <figure><img src="https://www.zhihu.com/equation?tex=%5Csqrt+d" alt="\sqrt d" loading="lazy"></figure> 是为了避免维度较大时点积数值过大，导致 softmax 过早饱和。</p><h3>2.5.3 MLP、Residual、LayerNorm 与激活函数</h3><ul><li><b>MLP，多层感知机</b>：若干“线性变换 + 非线性激活”堆叠而成，用来学习复杂的隐式特征交互。</li><li><b>FFN，前馈网络</b>：Transformer 中对每个 token 独立应用的 MLP，一般先升维、激活，再降维。</li><li><b>Residual Connection，残差连接</b>：将模块输入直接加到输出上，即 <figure><img src="https://www.zhihu.com/equation?tex=y%3Dx%2BF%28x%29" alt="y=x+F(x)" loading="lazy"></figure>。它保留原始信息并让深层网络更容易传播梯度。</li><li><b>Layer Normalization，层归一化</b>：对单个样本某一层的特征维做标准化，稳定序列模型训练；它不依赖同一批次中的其他样本。</li><li><b>ReLU，线性整流激活</b>：<figure><img src="https://www.zhihu.com/equation?tex=%5Cmax%280%2Cx%29" alt="\max(0,x)" loading="lazy"></figure>，计算便宜，但负半轴梯度为零。</li><li><b>PReLU，参数化 ReLU</b>：负半轴保留可学习斜率 <figure><img src="https://www.zhihu.com/equation?tex=ax" alt="ax" loading="lazy"></figure>。</li><li><b>Dice，数据自适应激活</b>：DIN 中常见。它根据输入分布估计“为正”的概率，在 <figure><img src="https://www.zhihu.com/equation?tex=x" alt="x" loading="lazy"></figure> 与 <figure><img src="https://www.zhihu.com/equation?tex=%5Calpha+x" alt="\alpha x" loading="lazy"></figure> 之间自适应切换，比固定零点的 PReLU 更适合分布变化明显的推荐特征。</li><li><b>SiLU/Swish，平滑门控激活</b>：<figure><img src="https://www.zhihu.com/equation?tex=x%5Csigma%28x%29" alt="x\sigma(x)" loading="lazy"></figure>，既保留负值信息又具有平滑梯度，现代 Transformer 中较常见。</li></ul><h3>2.5.4 Pointwise、Pairwise 与 Listwise 排序</h3><ul><li><b>Pointwise，逐点学习</b>：把每个样本独立看成分类或回归问题，例如用二元交叉熵预测是否点击。它直接输出概率，便于校准，但没有显式比较两个候选的先后。</li><li><b>Pairwise，成对学习</b>：构造正样本 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure> 与负样本 <figure><img src="https://www.zhihu.com/equation?tex=j" alt="j" loading="lazy"></figure>，要求正样本分数更高。典型 BPR 损失为 <figure><img src="https://www.zhihu.com/equation?tex=-%5Clog%5Csigma%28s_i-s_j%29" alt="-\log\sigma(s_i-s_j)" loading="lazy"></figure>。它更贴近相对排序，但输出不天然是校准概率。</li><li><b>Listwise，列表学习</b>：一次考虑整个候选列表或其近似分布，例如 ListNet、LambdaLoss。它更贴近 NDCG 等列表指标，但样本构造与计算更复杂。</li></ul><h3>2.5.5 Softmax、负采样与对比学习</h3><ul><li><b>Softmax，归一化指数函数</b>：把多个候选分数转为总和为 1 的概率。若物品有上亿个，计算全量分母代价太高。</li><li><b>Sampled Softmax，采样近似 Softmax</b>：只保留正样本和少量采样负样本近似全量分类。若负样本不是均匀采样，通常需要用采样概率 <figure><img src="https://www.zhihu.com/equation?tex=q%28i%29" alt="q(i)" loading="lazy"></figure> 做 <figure><img src="https://www.zhihu.com/equation?tex=-%5Clog+q%28i%29" alt="-\log q(i)" loading="lazy"></figure> 修正，避免热门物品被过度采样后造成偏差。</li><li><b>In-batch Negatives，批内负样本</b>：一个 batch 中其他样本的正物品，直接作为当前用户的负物品。它几乎不增加编码成本，但可能把用户实际喜欢、只是本次未点击的物品当成假负样本。</li><li><b>Hard Negative，困难负样本</b>：模型容易混淆但标签为负的候选，例如已召回且分数较高、最终未点击的广告。它提供更强训练信号，但过难或含噪的负样本会破坏训练。</li><li><b>Contrastive Learning，对比学习</b>：拉近正样本表示、推远负样本表示。双塔常用的批内 softmax 就是一种对比学习。</li><li><b>Temperature，温度系数</b>：分数除以温度 <figure><img src="https://www.zhihu.com/equation?tex=%5Ctau" alt="\tau" loading="lazy"></figure> 后再做 softmax。较小的 <figure><img src="https://www.zhihu.com/equation?tex=%5Ctau" alt="\tau" loading="lazy"></figure> 让分布更尖锐、更强调难负样本，也可能导致梯度不稳定。</li></ul><h3>2.5.6 ANN、MIPS 与向量检索</h3><ul><li><b>ANN，近似最近邻检索</b>：不保证找到数学上绝对最近的向量，而是在可接受误差下大幅降低检索耗时。常见索引包括 HNSW 图索引、IVF 倒排聚类和 PQ 乘积量化。</li><li><b>MIPS，最大内积搜索</b>：寻找与用户向量内积最大的物品。双塔用内积打分时，线上召回就是 MIPS 问题。</li><li><b>Recall@K，前 K 召回率</b>：真实正样本是否出现在召回的前 K 个结果中。ANN 的系统评估要同时看 Recall@K、延迟、内存和索引更新成本。</li></ul><h3>2.5.7 显式交互、隐式交互与低秩分解</h3><ul><li><b>Explicit Interaction，显式交互</b>：网络结构明确规定如何组合特征，例如 FM 的二阶内积、DCN 的 Cross Layer。其归纳偏置清楚，更容易解释。</li><li><b>Implicit Interaction，隐式交互</b>：把特征拼接后交给 MLP 自动学习，没有规定具体交叉形式。表达灵活，但在稀疏数据下可能更难学到有效组合。</li><li><b>Low-rank Factorization，低秩分解</b>：用两个窄矩阵近似一个大矩阵，或用两个低维向量内积近似海量交叉参数。它假设复杂关系主要位于低维潜在空间，可减少参数和计算。</li></ul><h3>2.5.8 Calibration、Bias 与数据泄漏</h3><ul><li><b>Calibration，概率校准</b>：预测为 0.1 的样本中应约有 10% 真正点击。广告系统常把 pCTR/pCVR 与出价相乘，因此校准错误会直接影响拍卖和预算。</li><li><b>Selection Bias，选择偏差</b>：训练样本只来自历史策略展示过的候选，并非全空间随机样本。CVR 又只在点击样本上观察，偏差更明显。</li><li><b>Position Bias，位置偏差</b>：高位置天然获得更多点击，标签同时反映相关性和展示位置。可加入位置特征、做随机实验或使用反事实估计缓解。</li><li><b>Data Leakage，数据泄漏</b>：训练时使用了预测时不可获得的信息，例如把转化后的行为、未来统计量或目标样本本身混入历史序列。离线指标会虚高，线上无法复现。</li></ul><h3>3. 经典召回与表示学习</h3><h3>3.1 ItemCF / UserCF</h3><p><b>使用阶段：</b> Item-based Collaborative Filtering，基于物品的协同过滤；User-based Collaborative Filtering，基于用户的协同过滤。二者都属于邻域方法，主要用于召回，也可作为排序特征。</p><p><b>解决的问题：</b> 在没有完整内容理解的情况下，利用“很多用户共同发生过行为”推断相似性。这里的 Collaborative，协同，指的是借助群体行为，而不是只看当前用户自己。</p><p><b>ItemCF 的计算步骤：</b></p><ol><li>把曝光、点击、收藏或购买整理成用户到物品的交互集合；</li><li>对同一用户交互过的物品两两统计共现次数；</li><li>对热门物品做归一化，得到物品相似度；</li><li>取用户最近或权重最高的历史物品，查相似物品表；</li><li>将多条历史产生的候选分数累加、去重并截取 Top-K。</li></ol><p>最常见的余弦式相似度为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Coperatorname%7Bsim%7D%28i%2Cj%29+%3D%5Cfrac%7B%7CU_i%5Ccap+U_j%7C%7D%7B%5Csqrt%7B%7CU_i%7C%7CU_j%7C%7D%7D.+" alt=" \operatorname{sim}(i,j) =\frac{|U_i\cap U_j|}{\sqrt{|U_i||U_j|}}. " loading="lazy"></figure></p><p>其中 <figure><img src="https://www.zhihu.com/equation?tex=U_i" alt="U_i" loading="lazy"></figure> 是与物品 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure> 发生过行为的用户集合，分子是同时与 <figure><img src="https://www.zhihu.com/equation?tex=i%2Cj" alt="i,j" loading="lazy"></figure> 交互的用户数，分母抑制两个热门物品仅因流量大而产生的虚假相似。</p><p>给用户 <figure><img src="https://www.zhihu.com/equation?tex=u" alt="u" loading="lazy"></figure> 推荐物品 <figure><img src="https://www.zhihu.com/equation?tex=j" alt="j" loading="lazy"></figure> 时可计算：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+s%28u%2Cj%29%3D%5Csum_%7Bi%5Cin+I_u%7Dw_%7Bui%7D%5Coperatorname%7Bsim%7D%28i%2Cj%29.+" alt=" s(u,j)=\sum_{i\in I_u}w_{ui}\operatorname{sim}(i,j). " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=I_u" alt="I_u" loading="lazy"></figure> 是用户历史物品集合，<figure><img src="https://www.zhihu.com/equation?tex=w_%7Bui%7D" alt="w_{ui}" loading="lazy"></figure> 可综合行为类型、行为次数和时间衰减。例如点击权重小于购买权重，较久远行为乘以 <figure><img src="https://www.zhihu.com/equation?tex=%5Cexp%28-%5Clambda%5CDelta+t%29" alt="\exp(-\lambda\Delta t)" loading="lazy"></figure>。</p><p><b>热门用户修正：</b> 若一个用户与成千上万个物品交互，他造成的任意两物品共现可信度较低。可让该用户对共现的贡献变为 <figure><img src="https://www.zhihu.com/equation?tex=1%2F%5Clog%281%2B%7CI_u%7C%29" alt="1/\log(1+|I_u|)" loading="lazy"></figure>，这叫 IUF，Inverse User Frequency，逆用户频率修正。</p><p><b>UserCF 的差异：</b> UserCF 先计算用户之间的相似度，再把相似用户喜欢、当前用户尚未交互的物品作为候选。它更直接地表示“相似人群喜欢什么”，但大规模系统中用户数量、兴趣变化速度和隐私约束通常使用户相似表更难维护；ItemCF 的物品关系往往更稳定。</p><p><b>训练与更新：</b> 传统协同过滤没有神经网络训练过程，主要是离线计数、归一化和 Top-K 截断。工程上应处理滑动时间窗、增量更新、热门降权、行为去噪和相似表过期。</p><p><b>优点：</b> 实现简单、解释性强、无需模型训练；用户刚发生一次行为后即可立刻触发相关候选，实时性好；适合成为多路召回中的高精度通道。</p><p><b>局限：</b> 新用户和新物品缺少共现，存在冷启动；容易强化热门偏置和信息茧房；无法自然使用文本、图片、上下文和广告侧属性；长尾物品共现次数少，估计方差大。</p><h3>3.2 Matrix Factorization</h3><p><b>使用阶段：</b> Matrix Factorization，矩阵分解。它把稀疏的用户-物品交互矩阵分解成用户向量和物品向量，可用于召回、相似推荐或作为下游模型的预训练表示。</p><p><b>核心直觉：</b> 用户对物品的偏好虽然表面上有巨大维度，但可能主要由少数潜在因素决定，例如价格敏感度、品类偏好、内容风格。MF 不要求人为给这些因素命名，而是从交互数据中学习低维 Latent Factors，潜在因子。</p><p>预测公式为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Chat+r_%7Bui%7D%3D%5Cmu%2Bb_u%2Bb_i%2B%5Cmathbf+p_u%5E%7B%5Cmathsf+T%7D%5Cmathbf+q_i.+" alt=" \hat r_{ui}=\mu+b_u+b_i+\mathbf p_u^{\mathsf T}\mathbf q_i. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Cmu" alt="\mu" loading="lazy"></figure> 是全局平均偏好，<figure><img src="https://www.zhihu.com/equation?tex=b_u" alt="b_u" loading="lazy"></figure> 是用户整体活跃或打高分的偏置，<figure><img src="https://www.zhihu.com/equation?tex=b_i" alt="b_i" loading="lazy"></figure> 是物品整体热门偏置，<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+p_u%2C%5Cmathbf+q_i%5Cin%5Cmathbb+R%5Ed" alt="\mathbf p_u,\mathbf q_i\in\mathbb R^d" loading="lazy"></figure> 分别是用户与物品的 <figure><img src="https://www.zhihu.com/equation?tex=d" alt="d" loading="lazy"></figure> 维潜在向量，内积越大表示匹配越强。</p><p><b>显式评分训练：</b> 对电影评分等明确数值，可最小化平方误差并加正则：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathcal+L+%3D%5Csum_%7B%28u%2Ci%29%5Cin%5Cmathcal+D%7D+%5Cleft%28r_%7Bui%7D-%5Chat+r_%7Bui%7D%5Cright%29%5E2+%2B%5Clambda%5Cleft%28%5C%7C%5Cmathbf+p_u%5C%7C_2%5E2%2B%5C%7C%5Cmathbf+q_i%5C%7C_2%5E2%2Bb_u%5E2%2Bb_i%5E2%5Cright%29.+" alt=" \mathcal L =\sum_{(u,i)\in\mathcal D} \left(r_{ui}-\hat r_{ui}\right)^2 +\lambda\left(\|\mathbf p_u\|_2^2+\|\mathbf q_i\|_2^2+b_u^2+b_i^2\right). " loading="lazy"></figure></p><p>正则项限制参数过大，避免模型只记住少量交互。可用 SGD，随机梯度下降，逐样本更新，也可用 ALS，交替最小二乘，固定用户向量求物品向量，再反过来迭代。</p><p><b>隐式反馈训练：</b> 点击只能说明“观察到喜欢”，未点击不等于不喜欢，因而常见三种做法：</p><ol><li>Pointwise，逐点二分类：正样本为发生行为的 <figure><img src="https://www.zhihu.com/equation?tex=%28u%2Ci%29" alt="(u,i)" loading="lazy"></figure>，从未观察物品中采负样本，用 BCE 训练；</li><li>Weighted MF，加权矩阵分解：把所有位置看作偏好 0/1，同时让已观察行为具有更高置信度；</li><li>BPR，贝叶斯个性化排序：要求正物品 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure> 的分数高于负物品 <figure><img src="https://www.zhihu.com/equation?tex=j" alt="j" loading="lazy"></figure>。</li></ol><p>BPR 损失为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathcal+L_%7B%5Cmathrm%7BBPR%7D%7D+%3D-%5Csum_%7B%28u%2Ci%2Cj%29%7D%5Clog%5Csigma+%5Cleft%28%5Chat+r_%7Bui%7D-%5Chat+r_%7Buj%7D%5Cright%29%2B%5Clambda%5C%7C%5CTheta%5C%7C_2%5E2.+" alt=" \mathcal L_{\mathrm{BPR}} =-\sum_{(u,i,j)}\log\sigma \left(\hat r_{ui}-\hat r_{uj}\right)+\lambda\|\Theta\|_2^2. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Csigma" alt="\sigma" loading="lazy"></figure> 是 Sigmoid 函数，<figure><img src="https://www.zhihu.com/equation?tex=%5CTheta" alt="\Theta" loading="lazy"></figure> 表示全部参数。若正负分差已经很大，损失接近 0；若负样本分数更高，模型会收到较大惩罚。</p><p><b>线上召回：</b> 学到用户向量后，可对物品向量做最大内积 ANN 检索。与 ItemCF 相比，不必要求两个物品直接共现，只要它们在多个潜在因素上相似，就可能相互泛化。</p><p><b>优点：</b> 参数形式简洁；从稀疏矩阵中共享统计强度；向量可用于检索、聚类和相似度分析；MF 是理解双塔与 Embedding 的重要起点。</p><p><b>局限：</b> 经典 MF 主要依赖 user_id/item_id，难以直接使用年龄、时段、文本、图片等 Side Information，辅助信息；新 ID 没有向量，冷启动明显；静态用户向量难表达短期兴趣和场景变化。</p><h3>3.3 DSSM / 双塔</h3><p><b>使用阶段：</b> DSSM 原指 Deep Structured Semantic Model，深层结构化语义模型；推荐系统中更常泛指 Two-Tower Model，双塔模型。它是大规模召回的基础结构，也可用于粗排蒸馏。</p><p><b>解决的问题：</b> MF 只能学习 ID 向量，双塔让用户侧和物品侧分别输入丰富特征，同时保持两侧可分离，使所有物品向量能够离线预计算并建立 ANN 索引。</p><p>用户塔和物品塔分别编码：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cbegin%7Baligned%7D+%5Cmathbf+u%26%3Df_%7B%5Cmathrm%7Buser%7D%7D%28%5Cmathrm%7Buser%7D%2C%5Cmathrm%7Bcontext%7D%2C%5Cmathrm%7Bhistory%7D%29%2C%5C%5C+%5Cmathbf+v%26%3Df_%7B%5Cmathrm%7Bitem%7D%7D%28%5Cmathrm%7Bitem%7D%2C%5Cmathrm%7Bcontent%7D%29%2C%5C%5C+%5Coperatorname%7Bscore%7D%28u%2Cv%29%26%3D%5Cmathbf+u%5E%7B%5Cmathsf+T%7D%5Cmathbf+v+%5Cquad%5Ctext%7B%E6%88%96%7D%5Cquad%5Ccos%28%5Cmathbf+u%2C%5Cmathbf+v%29.+%5Cend%7Baligned%7D+" alt=" \begin{aligned} \mathbf u&amp;=f_{\mathrm{user}}(\mathrm{user},\mathrm{context},\mathrm{history}),\\ \mathbf v&amp;=f_{\mathrm{item}}(\mathrm{item},\mathrm{content}),\\ \operatorname{score}(u,v)&amp;=\mathbf u^{\mathsf T}\mathbf v \quad\text{或}\quad\cos(\mathbf u,\mathbf v). \end{aligned} " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=f_%7B%5Cmathrm%7Buser%7D%7D" alt="f_{\mathrm{user}}" loading="lazy"></figure> 可包含用户 ID、画像、场景和历史序列编码器；<figure><img src="https://www.zhihu.com/equation?tex=f_%7B%5Cmathrm%7Bitem%7D%7D" alt="f_{\mathrm{item}}" loading="lazy"></figure> 可包含广告 ID、行业、文案、图像和创作者信息。<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+u%2C%5Cmathbf+v" alt="\mathbf u,\mathbf v" loading="lazy"></figure> 必须位于同一向量空间。点积保留向量模长信息，余弦相似度先归一化，只比较夹角。</p><p><b>数据流步骤：</b></p><ol><li>对离散特征做 Embedding，对连续特征归一化或分桶；</li><li>用户塔聚合画像、上下文和行为序列，输出一个固定维度用户向量；</li><li>物品塔编码物品 ID 与内容，输出同维度物品向量；</li><li>训练时提高正样本对的内积，降低负样本对的内积；</li><li>服务前批量计算全部物品向量并构建 ANN 索引；</li><li>请求到来时只算一次用户向量，检索 Top-K 物品。</li></ol><p><b>批内负样本损失：</b> 假设一个 batch 有 <figure><img src="https://www.zhihu.com/equation?tex=B" alt="B" loading="lazy"></figure> 对正样本 <figure><img src="https://www.zhihu.com/equation?tex=%28u_b%2Ci_b%29" alt="(u_b,i_b)" loading="lazy"></figure>，则用户 <figure><img src="https://www.zhihu.com/equation?tex=u_b" alt="u_b" loading="lazy"></figure> 把同 batch 的其他 <figure><img src="https://www.zhihu.com/equation?tex=i_k" alt="i_k" loading="lazy"></figure> 当作负样本：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathcal+L_b+%3D-%5Clog+%5Cfrac%7B%5Cexp%28s%28%5Cmathbf+u_b%2C%5Cmathbf+v_b%29%2F%5Ctau%29%7D+%7B%5Csum_%7Bk%3D1%7D%5E%7BB%7D%5Cexp%28s%28%5Cmathbf+u_b%2C%5Cmathbf+v_k%29%2F%5Ctau%29%7D.+" alt=" \mathcal L_b =-\log \frac{\exp(s(\mathbf u_b,\mathbf v_b)/\tau)} {\sum_{k=1}^{B}\exp(s(\mathbf u_b,\mathbf v_k)/\tau)}. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=s" alt="s" loading="lazy"></figure> 是内积或余弦分数，<figure><img src="https://www.zhihu.com/equation?tex=%5Ctau" alt="\tau" loading="lazy"></figure> 是温度系数。一个 batch 越大，免费获得的负样本越多，但显存和跨卡通信成本也更高。</p><p><b>为什么负采样很关键：</b> 随机负样本通常太容易，模型很快学会；曝光未点击或 ANN 近邻属于困难负样本，更能训练决策边界。若按物品热度 <figure><img src="https://www.zhihu.com/equation?tex=q%28i%29" alt="q(i)" loading="lazy"></figure> 采样，热门物品在分母中出现更频繁，可将 logit 改成 <figure><img src="https://www.zhihu.com/equation?tex=s%28u%2Ci%29-%5Clog+q%28i%29" alt="s(u,i)-\log q(i)" loading="lazy"></figure> 做采样偏差修正。批内负样本也可能是假负样本：其他用户点击的广告可能同样适合当前用户，只是尚未曝光。</p><p><b>内积、余弦和欧氏距离：</b> 当向量都做 L2 归一化时，</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5C%7C%5Cmathbf+u-%5Cmathbf+v%5C%7C_2%5E2+%3D2-2%5Cmathbf+u%5E%7B%5Cmathsf+T%7D%5Cmathbf+v%2C+" alt=" \|\mathbf u-\mathbf v\|_2^2 =2-2\mathbf u^{\mathsf T}\mathbf v, " loading="lazy"></figure></p><p>所以最大化余弦等价于最小化欧氏距离。未归一化的内积还利用模长表达热度或置信度，但热门物品可能因向量模长大而占优。</p><p><b>蒸馏精排：</b> 让表达力强的精排模型作为 Teacher，教师，为大量用户-候选对产生软分数；双塔 Student，学生，同时学习点击标签和教师分数。它可以把部分交叉特征知识压入可检索空间，但双塔的可分解结构仍决定了表达上限。</p><p><b>优点：</b> 检索复杂度低；物品向量可缓存；能够融合 ID、画像和多模态内容；对新物品可依靠内容侧特征获得向量。</p><p><b>局限与工程成本：</b> 用户与物品在最终点积前没有细粒度交叉；一个固定用户向量难表达多峰兴趣；负采样分布直接影响效果；ANN 索引存在近似误差、内存消耗、增量更新与新鲜度问题。</p><p><b>与后续模型的关系：</b> YouTube DNN 是双塔思想的经典工业化方案；MIND 把一个用户向量扩展为多个兴趣向量；DIN 则放弃物品侧完全可分离，用候选广告查询历史，更适合精排而非亿级召回。</p><p>双塔分别编码用户和物品，用内积或余弦训练匹配空间。训练常用采样 Softmax、批内负样本和困难负样本，线上预计算物品向量并做 ANN 最大内积检索。它把高表达特征编码与大规模检索结合起来，但打分前两侧没有交叉，所以负样本设计、多兴趣表示和精排蒸馏是主要改进方向。</p><h3>3.4 YouTube DNN Candidate Generation</h3><p><b>使用阶段：</b> YouTube 深度候选生成模型，是“候选生成 + 排序”两阶段工业推荐架构中的召回模型。Candidate Generation 指从海量视频中生成少量候选，不负责最终精细排序。</p><p><b>输入与输出：</b> 输入包含用户观看历史、搜索历史、用户属性和地理等上下文。早期方案将可变长历史的物品 Embedding 求平均，得到固定长度表示，再与其他特征拼接进入 MLP。输出层把“下一个会观看的视频”视为超大规模多分类问题。</p><p><b>训练目标：</b> 对一次观看事件 <figure><img src="https://www.zhihu.com/equation?tex=%28u%2Ci%5E%2B%29" alt="(u,i^+)" loading="lazy"></figure>，理想的全量 Softmax 为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+p%28i%5E%2B%5Cmid+u%29+%3D%5Cfrac%7B%5Cexp%28%5Cmathbf+v_%7Bi%5E%2B%7D%5E%7B%5Cmathsf+T%7D%5Cmathbf+u%29%7D+%7B%5Csum_%7Bj%5Cin%5Cmathcal+V%7D%5Cexp%28%5Cmathbf+v_j%5E%7B%5Cmathsf+T%7D%5Cmathbf+u%29%7D.+" alt=" p(i^+\mid u) =\frac{\exp(\mathbf v_{i^+}^{\mathsf T}\mathbf u)} {\sum_{j\in\mathcal V}\exp(\mathbf v_j^{\mathsf T}\mathbf u)}. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Cmathcal+V" alt="\mathcal V" loading="lazy"></figure> 是全部视频集合，<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+u" alt="\mathbf u" loading="lazy"></figure> 是用户网络输出，<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+v_j" alt="\mathbf v_j" loading="lazy"></figure> 是分类器中第 <figure><img src="https://www.zhihu.com/equation?tex=j" alt="j" loading="lazy"></figure> 个视频的权重向量。由于分母可能包含百万到亿级视频，训练用 Sampled Softmax，只计算正样本与少量采样负样本。线上把输出分类器权重当作视频向量，近邻搜索与用户向量内积最大的候选。</p><p><b>工业设计为何重要：</b></p><ol><li><b>按用户等权采样</b>：若按所有观看事件均匀采样，超活跃用户会贡献大量样本并主导损失；按用户采样让不同用户权重更均衡。</li><li><b>Example Age，样本年龄</b>：内容流行度随时间变化。加入训练样本距离训练截止时刻的年龄，让模型知道旧样本所处时间；在线预测时年龄设为 0，从而更偏向新鲜内容。</li><li><b>避免泄漏</b>：构造某次观看的用户历史时，只能使用该时刻之前的行为，不能把未来观看或目标视频混入平均池化。</li><li><b>召回与排序分工</b>：召回优化覆盖和吞吐，后续排序再加入更多候选相关特征与观看时长目标。</li></ol><p><b>优点：</b> 给出了超大类别分类、采样训练和近邻服务的完整工业闭环；历史、搜索和画像能统一进入用户表示；结构简单且可扩展。</p><p><b>局限：</b> 对历史直接平均会丢失顺序与多兴趣；用户向量与目标候选无关；采样 Softmax 的训练分布与线上候选分布可能不一致；物品快速变化时要处理索引更新。</p><p><b>与普通双塔的关系：</b> 它本质上是双塔式可分解召回，但论文以“用户网络 + 超大分类权重”的形式描述。更重要的贡献是样本构造、时间偏差处理和两阶段系统，而不是发明了复杂交互层。</p><p>YouTube DNN 把候选生成建模为预测下一视频的超大多分类，用户侧聚合观看和搜索历史，通过采样 Softmax 训练，线上把输出层视频权重作为物品向量做 ANN。面试重点不仅是网络，还包括按用户等权采样、样本年龄特征和严格的时间切分，这些用于控制活跃用户偏置、内容非平稳和数据泄漏。</p><h3>3.5 MIND / ComiRec 多兴趣召回</h3><p><b>使用阶段：</b> MIND 是 Multi-Interest Network with Dynamic Routing，多兴趣动态路由网络；ComiRec 是 Controllable Multi-Interest Framework，可控多兴趣推荐框架。二者主要解决召回阶段“一个用户只有一个向量”的表达瓶颈。</p><p><b>问题背景：</b> 一个用户可能同时喜欢篮球、数码和旅行。普通双塔把所有历史压成 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+u" alt="\mathbf u" loading="lazy"></figure>，不同兴趣会相互平均，导致用户向量落在没有明确语义的中间区域。多兴趣模型输出 <figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure> 个用户向量，每个向量负责一个潜在兴趣簇。</p><p><b>MIND 的数据流：</b></p><ol><li>将历史行为物品映射为 Embedding 序列 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+e_1%2C%5Cldots%2C%5Cmathbf+e_L" alt="\mathbf e_1,\ldots,\mathbf e_L" loading="lazy"></figure>；</li><li>用 Behavior-to-Interest 动态路由，将行为向量软分配到 <figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure> 个兴趣胶囊；</li><li>多轮更新“行为属于哪个兴趣”的耦合权重；</li><li>得到兴趣向量 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+u_1%2C%5Cldots%2C%5Cmathbf+u_K" alt="\mathbf u_1,\ldots,\mathbf u_K" loading="lazy"></figure>；</li><li>训练时用目标物品选择最相关兴趣；</li><li>线上每个兴趣向量独立 ANN 召回，再合并、去重和重排。</li></ol><p><b>动态路由是什么：</b> Dynamic Routing，动态路由，来自胶囊网络。它不是固定地按时间或品类切分历史，而是迭代完成软聚类。简化写法为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cbegin%7Baligned%7D+c_%7Btk%7D%26%3D%5Coperatorname%7Bsoftmax%7D_k%28b_%7Btk%7D%29%2C%5C%5C+%5Cmathbf+z_k%26%3D%5Csum_%7Bt%3D1%7D%5E%7BL%7Dc_%7Btk%7D%5Cmathbf+S%5Cmathbf+e_t%2C%5C%5C+%5Cmathbf+u_k%26%3D%5Coperatorname%7Bsquash%7D%28%5Cmathbf+z_k%29%2C%5C%5C+b_%7Btk%7D%26%5Cleftarrow+b_%7Btk%7D%2B%28%5Cmathbf+S%5Cmathbf+e_t%29%5E%7B%5Cmathsf+T%7D%5Cmathbf+u_k.+%5Cend%7Baligned%7D+" alt=" \begin{aligned} c_{tk}&amp;=\operatorname{softmax}_k(b_{tk}),\\ \mathbf z_k&amp;=\sum_{t=1}^{L}c_{tk}\mathbf S\mathbf e_t,\\ \mathbf u_k&amp;=\operatorname{squash}(\mathbf z_k),\\ b_{tk}&amp;\leftarrow b_{tk}+(\mathbf S\mathbf e_t)^{\mathsf T}\mathbf u_k. \end{aligned} " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=c_%7Btk%7D" alt="c_{tk}" loading="lazy"></figure> 表示第 <figure><img src="https://www.zhihu.com/equation?tex=t" alt="t" loading="lazy"></figure> 个行为分给第 <figure><img src="https://www.zhihu.com/equation?tex=k" alt="k" loading="lazy"></figure> 个兴趣的软权重；<figure><img src="https://www.zhihu.com/equation?tex=b_%7Btk%7D" alt="b_{tk}" loading="lazy"></figure> 是尚未归一化的一致性分数；<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+S" alt="\mathbf S" loading="lazy"></figure> 是变换矩阵；Squash，压缩函数，保持方向并把向量长度压到 0 到 1。若行为与某兴趣方向一致，内积会增大，下一轮该行为被分给该兴趣的权重也会上升。</p><p><b>目标感知的兴趣选择：</b> 训练样本只有一个目标物品 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure>，需要确定哪个兴趣负责预测它。可选与目标向量内积最大的兴趣：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+k%5E%2A%3D%5Carg%5Cmax_k%5Cmathbf+u_k%5E%7B%5Cmathsf+T%7D%5Cmathbf+v_i%2C+%5Cqquad+s%28u%2Ci%29%3D%5Cmathbf+u_%7Bk%5E%2A%7D%5E%7B%5Cmathsf+T%7D%5Cmathbf+v_i.+" alt=" k^*=\arg\max_k\mathbf u_k^{\mathsf T}\mathbf v_i, \qquad s(u,i)=\mathbf u_{k^*}^{\mathsf T}\mathbf v_i. " loading="lazy"></figure></p><p>这一步叫 Label-aware Attention，标签感知注意力。也可用带温度的 Softmax 对多个兴趣加权。注意它只在训练或对候选打分时使用目标物品，线上全库召回前不能为每个物品重新聚合兴趣。</p><p><b>ComiRec 的两种兴趣提取：</b> ComiRec-DR 使用 Dynamic Routing，动态路由；ComiRec-SA 使用 Self-Attention，自注意力，让 <figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure> 个可学习查询分别关注历史中的不同部分。ComiRec 还强调可控聚合，在合并多兴趣候选时加入品类覆盖或多样性目标，而不是只按相关性取分数最高的物品。</p><p><b>训练与服务：</b> 训练仍可使用采样 Softmax 或批内负样本。线上通常每个兴趣取 Top-<figure><img src="https://www.zhihu.com/equation?tex=N" alt="N" loading="lazy"></figure>，得到最多 <figure><img src="https://www.zhihu.com/equation?tex=K%5Ctimes+N" alt="K\times N" loading="lazy"></figure> 个候选，去重后再统一打分。可以根据用户历史复杂度动态决定 <figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure>，避免短历史用户产生多个噪声兴趣。</p><p><b>优点：</b> 减少多峰兴趣被平均的问题；一位用户可从多个语义区域召回候选；提升长尾覆盖和结果多样性；仍保留双塔可 ANN 检索的优点。</p><p><b>局限与工程成本：</b> <figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure> 需要调节；多个兴趣可能学成相同方向，称为 Interest Collapse，兴趣塌缩；路由迭代和多次 ANN 增加延迟；训练时由目标选择兴趣，线上却要先独立召回，存在训练与推理差异；多路候选合并容易被热门兴趣占满。</p><p><b>与 DIN 的关系：</b> MIND 为了全库召回，必须提前产出有限个目标无关兴趣向量；DIN 在候选已经缩小后，可让每个候选直接查询完整历史。因此 MIND 更适合召回，DIN 更适合精排，二者不是替代关系。</p><p>MIND 针对单用户向量无法表达多峰兴趣的问题，用胶囊动态路由把行为软聚成 <figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure> 个兴趣向量，训练时由目标物品选择最相关兴趣，线上对每个兴趣分别 ANN 召回再合并。它兼顾表达力和可检索性，但要处理兴趣塌缩、<figure><img src="https://www.zhihu.com/equation?tex=K" alt="K" loading="lazy"></figure> 的选择、多次检索成本以及训练与推理不一致。</p><h3>4. CTR 特征交互模型</h3><h3>4.1 Logistic Regression</h3><p><b>使用阶段：</b> Logistic Regression，逻辑回归。虽然名字包含“回归”，它在 CTR 中是二分类概率模型，常用于排序基线、在线学习、校准层，也常作为复杂模型的最后输出层。</p><p><b>输入与输出：</b> 输入 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x" alt="\mathbf x" loading="lazy"></figure> 可以包含连续特征、分桶后的类别特征、one-hot 特征和人工交叉特征；输出是点击概率 <figure><img src="https://www.zhihu.com/equation?tex=p" alt="p" loading="lazy"></figure>：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cbegin%7Baligned%7D+p%28y%3D1%5Cmid%5Cmathbf+x%29%26%3D%5Csigma%28%5Cmathbf+w%5E%7B%5Cmathsf+T%7D%5Cmathbf+x%2Bb%29%2C%5C%5C+%5Cmathcal+L%26%3D-y%5Clog+p-%281-y%29%5Clog%281-p%29.+%5Cend%7Baligned%7D+" alt=" \begin{aligned} p(y=1\mid\mathbf x)&amp;=\sigma(\mathbf w^{\mathsf T}\mathbf x+b),\\ \mathcal L&amp;=-y\log p-(1-y)\log(1-p). \end{aligned} " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+w" alt="\mathbf w" loading="lazy"></figure> 是各特征权重，<figure><img src="https://www.zhihu.com/equation?tex=b" alt="b" loading="lazy"></figure> 是全局偏置，<figure><img src="https://www.zhihu.com/equation?tex=%5Csigma%28z%29%3D1%2F%281%2Be%5E%7B-z%7D%29" alt="\sigma(z)=1/(1+e^{-z})" loading="lazy"></figure> 把任意实数映射为 0 到 1。<figure><img src="https://www.zhihu.com/equation?tex=y%5Cin%5C%7B0%2C1%5C%7D" alt="y\in\{0,1\}" loading="lazy"></figure> 是点击标签，<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathcal+L" alt="\mathcal L" loading="lazy"></figure> 是 Binary Cross-Entropy，二元交叉熵，也就是负对数似然。</p><p><b>如何解释权重：</b> 特征 <figure><img src="https://www.zhihu.com/equation?tex=x_i" alt="x_i" loading="lazy"></figure> 增加 1 时，点击 Odds，几率 <figure><img src="https://www.zhihu.com/equation?tex=p%2F%281-p%29" alt="p/(1-p)" loading="lazy"></figure>，会乘以 <figure><img src="https://www.zhihu.com/equation?tex=e%5E%7Bw_i%7D" alt="e^{w_i}" loading="lazy"></figure>。因此 LR 的系数具有较清楚的统计含义。但在强相关特征、哈希冲突和人工交叉很多时，不能把单个权重直接当作因果作用。</p><p><b>稀疏 CTR 为什么常用 FTRL：</b> FTRL 是 Follow-The-Regularized-Leader，带正则的在线累积优化。它为每个参数累计历史梯度，并结合 L1、L2 正则更新：</p><ul><li>L1 正则会把大量不重要的稀疏特征权重压成精确的 0，节省内存；</li><li>自适应学习率让频繁特征更新更谨慎、低频特征仍能获得足够步长；</li><li>参数可按新流量持续增量更新，适合分布不断变化的广告系统。</li></ul><p><b>人工交叉的作用：</b> 原始 LR 只有 <figure><img src="https://www.zhihu.com/equation?tex=%5Csum_iw_ix_i" alt="\sum_iw_ix_i" loading="lazy"></figure>，不能自动表示“城市=北京且行业=教育”这一组合。若显式加入 <figure><img src="https://www.zhihu.com/equation?tex=x_%7B%5Ctext%7B%E5%8C%97%E4%BA%AC%7D%7D%5Ctimes+x_%7B%5Ctext%7B%E6%95%99%E8%82%B2%7D%7D" alt="x_{\text{北京}}\times x_{\text{教育}}" loading="lazy"></figure>，LR 就能给该组合独立权重。因此“LR 是线性模型”是指它对已经构造好的输入线性，不代表它对原始业务变量只能表达简单关系。</p><p><b>样本下采样后的先验修正：</b> 广告点击率很低，训练常下采样负样本。若正样本保留率为 <figure><img src="https://www.zhihu.com/equation?tex=r_1" alt="r_1" loading="lazy"></figure>、负样本保留率为 <figure><img src="https://www.zhihu.com/equation?tex=r_0" alt="r_0" loading="lazy"></figure>，模型学到的是采样分布概率 <figure><img src="https://www.zhihu.com/equation?tex=p_s" alt="p_s" loading="lazy"></figure>，可修正真实 Odds：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cfrac%7Bp%7D%7B1-p%7D+%3D%5Cfrac%7Bp_s%7D%7B1-p_s%7D%5Cfrac%7Br_0%7D%7Br_1%7D.+" alt=" \frac{p}{1-p} =\frac{p_s}{1-p_s}\frac{r_0}{r_1}. " loading="lazy"></figure></p><p>等价地，在 logit 上加 <figure><img src="https://www.zhihu.com/equation?tex=%5Clog%28r_0%2Fr_1%29" alt="\log(r_0/r_1)" loading="lazy"></figure>。若不修正，AUC 可能不变，但 pCTR 会严重偏高。</p><p><b>优点：</b> 训练和推理快；适合超高维稀疏输入；权重可分析；在线更新方便；概率通常比纯排序损失更容易校准，是非常重要的基线。</p><p><b>局限：</b> 原始结构只有一阶；大量人工交叉依赖经验且组合爆炸；每个交叉拥有独立权重，低频组合无法共享统计强度；难以直接建模序列和图像文本。</p><p>LR 用线性 logit 加 Sigmoid 输出 CTR，并用二元交叉熵训练。它对输入是线性的，但加入人工交叉后可表达原始变量的组合关系。广告系统常配合 FTRL 做稀疏在线学习，并在负样本下采样后修正概率先验。它稳定、可校准，但自动交叉和表示泛化能力弱，这推动了 FM 与深度模型的发展。</p><h3>4.2 Factorization Machine</h3><p><b>使用阶段：</b> Factorization Machine，因子分解机。它在 LR 的一阶项上加入可泛化的二阶特征交互，可用于 CTR 排序或作为 DeepFM 等模型的浅层分支。</p><p><b>为什么不用独立交叉权重：</b> 若有百万稀疏特征，直接为每对特征学习 <figure><img src="https://www.zhihu.com/equation?tex=w_%7Bij%7D" alt="w_{ij}" loading="lazy"></figure> 需要约万亿参数，而且大多数特征对从未共同出现。FM 假设交叉权重矩阵是低秩的，用两个 <figure><img src="https://www.zhihu.com/equation?tex=k" alt="k" loading="lazy"></figure> 维向量内积近似 <figure><img src="https://www.zhihu.com/equation?tex=w_%7Bij%7D" alt="w_{ij}" loading="lazy"></figure>。</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Chat+y%3Dw_0%2B%5Csum_iw_ix_i%2B%5Csum_%7Bi%3Cj%7D%5Clangle%5Cmathbf+v_i%2C%5Cmathbf+v_j%5Crangle+x_ix_j.+" alt=" \hat y=w_0+\sum_iw_ix_i+\sum_{i&lt;j}\langle\mathbf v_i,\mathbf v_j\rangle x_ix_j. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=w_0" alt="w_0" loading="lazy"></figure> 是全局偏置，<figure><img src="https://www.zhihu.com/equation?tex=w_i" alt="w_i" loading="lazy"></figure> 是一阶权重，<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+v_i%5Cin%5Cmathbb+R%5Ek" alt="\mathbf v_i\in\mathbb R^k" loading="lazy"></figure> 是第 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure> 个特征的潜在向量，<figure><img src="https://www.zhihu.com/equation?tex=%5Clangle%5Cmathbf+v_i%2C%5Cmathbf+v_j%5Crangle" alt="\langle\mathbf v_i,\mathbf v_j\rangle" loading="lazy"></figure> 是二者内积。若两个特征没有直接共现，只要它们分别与其他相似特征共享过训练信号，向量仍可能学出合理交叉值。</p><p><b>计算为何是 <figure><img src="https://www.zhihu.com/equation?tex=O%28nk%29" alt="O(nk)" loading="lazy"></figure>：</b> 直接枚举二阶项需要 <figure><img src="https://www.zhihu.com/equation?tex=O%28n%5E2k%29" alt="O(n^2k)" loading="lazy"></figure>。利用“和的平方减平方的和”可改写为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Csum_%7Bi%3Cj%7D%5Clangle%5Cmathbf+v_i%2C%5Cmathbf+v_j%5Crangle+x_ix_j+%3D%5Cfrac12%5Csum_%7Bf%3D1%7D%5E%7Bk%7D%5Cleft%5B%5Cleft%28%5Csum_i+v_%7Bif%7Dx_i%5Cright%29%5E2-%5Csum_i%28v_%7Bif%7Dx_i%29%5E2%5Cright%5D.+" alt=" \sum_{i&lt;j}\langle\mathbf v_i,\mathbf v_j\rangle x_ix_j =\frac12\sum_{f=1}^{k}\left[\left(\sum_i v_{if}x_i\right)^2-\sum_i(v_{if}x_i)^2\right]. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=f" alt="f" loading="lazy"></figure> 是潜在向量的第 <figure><img src="https://www.zhihu.com/equation?tex=f" alt="f" loading="lazy"></figure> 维。实际 CTR 样本中只有少量非零特征，复杂度还可按非零数计算，非常适合稀疏输入。</p><p><b>一个直观例子：</b> 对“男性、北京、游戏广告”三个非零特征，FM 会同时计算“男性×北京”“男性×游戏”“北京×游戏”。与 LR 人工给每个组合独立权重不同，三个交叉通过各自 Embedding 的内积产生。</p><p><b>输出与损失：</b> <figure><img src="https://www.zhihu.com/equation?tex=%5Chat+y" alt="\hat y" loading="lazy"></figure> 是 logit 时，可再接 Sigmoid 并用 BCE 训练；做评分预测时也可直接使用平方损失。Embedding、一阶权重和偏置通过同一个目标端到端更新。</p><p><b>优点：</b> 自动学习全部二阶交叉；对极稀疏组合具有参数共享和泛化能力；复杂度与非零特征数近似线性；是很多后续模型理解低阶交互的基础。</p><p><b>局限：</b> 只显式建模二阶；同一个特征无论与哪个特征域交互都使用同一向量；所有特征对默认同一种内积形式，无法根据样本动态决定哪些交互更重要；序列被压成静态特征后会丢失顺序。</p><p><b>与 LR 的关系：</b> 把所有 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+v_i" alt="\mathbf v_i" loading="lazy"></figure> 设为 0，FM 就退化为 LR。FM 的关键不是“用了 Embedding”，而是用低秩向量内积替代海量独立二阶参数。</p><p>FM 在 LR 上增加全部二阶交叉，用特征潜在向量内积表示每个交叉权重。低秩共享让从未直接共现的稀疏特征也能泛化，且通过代数改写把计算降到 <figure><img src="https://www.zhihu.com/equation?tex=O%28nk%29" alt="O(nk)" loading="lazy"></figure>。它解决了人工交叉和参数爆炸，但显式表达仍停留在二阶，且所有特征域共享同一种交互方式。</p><h3>4.3 FFM / FwFM</h3><p>FFM 是 Field-aware Factorization Machine，域感知因子分解机；FwFM 是 Field-weighted Factorization Machine，域加权因子分解机。</p><p><b>FFM 解决的问题：</b> FM 中“用户年龄=20”只有一个向量，但它与“广告行业”交互和与“设备类型”交互的语义不同。FFM 让同一特征面对不同 Field，特征域，时使用不同向量：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cleft%5Clangle%5Cmathbf+v_%7Bi%2C%5Coperatorname%7Bfield%7D%28j%29%7D%2C+%5Cmathbf+v_%7Bj%2C%5Coperatorname%7Bfield%7D%28i%29%7D%5Cright%5Crangle+x_ix_j.+" alt=" \left\langle\mathbf v_{i,\operatorname{field}(j)}, \mathbf v_{j,\operatorname{field}(i)}\right\rangle x_ix_j. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+v_%7Bi%2C%5Coperatorname%7Bfield%7D%28j%29%7D" alt="\mathbf v_{i,\operatorname{field}(j)}" loading="lazy"></figure> 表示特征 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure> 专门用于和 <figure><img src="https://www.zhihu.com/equation?tex=j" alt="j" loading="lazy"></figure> 所在域交互的向量。例如“北京”与“广告行业”交互使用一套参数，与“星期几”交互使用另一套参数。</p><p><b>FFM 的代价：</b> 若有 <figure><img src="https://www.zhihu.com/equation?tex=F" alt="F" loading="lazy"></figure> 个域，同一特征最多需要 <figure><img src="https://www.zhihu.com/equation?tex=F-1" alt="F-1" loading="lazy"></figure> 个向量，参数量约为 FM 的 <figure><img src="https://www.zhihu.com/equation?tex=F" alt="F" loading="lazy"></figure> 倍；二阶计算也难以使用 FM 的统一 <figure><img src="https://www.zhihu.com/equation?tex=O%28nk%29" alt="O(nk)" loading="lazy"></figure> 化简。它在 CTR 竞赛和中等规模数据上常很强，但在超大 ID 系统中内存与在线延迟明显。</p><p><b>FwFM 如何折中：</b> FwFM 仍为每个特征保留一个 Embedding，但为每对特征域学习标量权重 <figure><img src="https://www.zhihu.com/equation?tex=r_%7Bf_i%2Cf_j%7D" alt="r_{f_i,f_j}" loading="lazy"></figure>：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+y_%7B%5Cmathrm%7BFwFM%7D%7D+%3D%5Csum_%7Bi%3Cj%7Dr_%7Bf_i%2Cf_j%7D+%5Clangle%5Cmathbf+v_i%2C%5Cmathbf+v_j%5Crangle+x_ix_j.+" alt=" y_{\mathrm{FwFM}} =\sum_{i&lt;j}r_{f_i,f_j} \langle\mathbf v_i,\mathbf v_j\rangle x_ix_j. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=r_%7Bf_i%2Cf_j%7D" alt="r_{f_i,f_j}" loading="lazy"></figure> 表示某两类域整体上应有多强的交互。例如“用户年龄×广告行业”可以比“设备品牌×星期”获得更大权重。它无法像 FFM 那样为每个特征准备多套方向不同的向量，但参数和显存更可控。</p><p><b>优点：</b> FFM 能表达域相关语义，通常比 FM 更细致；FwFM 在表达力和成本之间提供实用折中。</p><p><b>局限：</b> 二者仍以二阶交互为主；FFM 参数巨大，FwFM 的域对标量较粗；低频域对可能过拟合；线上还要处理特征哈希和参数服务器带宽。</p><p>FFM 认为同一特征面对不同特征域时语义不同，因此为“特征×对方域”学习不同向量，表达力强但参数约为 FM 的域数倍。FwFM 只保留一套特征向量，再给每个域对增加标量权重，用较低成本近似域差异。</p><h3>4.4 GBDT + LR</h3><p><b>结构：</b> GBDT 是 Gradient Boosting Decision Tree，梯度提升决策树；与 LR 组合后形成“树模型自动产生交叉特征，线性模型输出概率”的两阶段架构。</p><p><b>数据流步骤：</b></p><ol><li>用用户、广告、上下文和统计特征训练多棵提升树；</li><li>每个样本在每棵树中沿判断条件走到一个叶子；</li><li>把“命中了哪片叶子”编码为稀疏 one-hot；</li><li>拼接原始特征或其他稀疏特征，训练 LR 输出 pCTR。</li></ol><p>假设有 3 棵树，每棵 4 个叶子，某样本命中第 1、3、2 号叶子，则得到长度 12、只有 3 个位置为 1 的向量。一个叶子路径可能等价于“年龄小于 25 且晚间访问且广告价格低”，因此树自动完成了阈值划分和高阶条件组合。</p><p><b>GBDT 如何训练：</b> 每一轮新树拟合当前模型损失的负梯度或残差。对于二分类，树不断修正上一轮的 logit 误差。Boosting，提升，指弱树按顺序叠加成为强模型，不是所有树完全独立。</p><p><b>为什么后面还接 LR：</b> 叶子已经是离散组合特征，LR 可以高效组合大量叶子并输出较易校准的概率；也便于将其他业务特征一起加入。传统方案中 GBDT 与 LR 往往分阶段训练，LR 的梯度不会反向改变树结构。</p><p><b>优点：</b> 对连续变量的非线性阈值、缺失值和统计特征很强；特征缩放要求低；叶子路径有一定可解释性；工程成熟。</p><p><b>局限：</b> 两阶段表示不是端到端联合优化；新数据到来时重训树和叶子编码较麻烦；对百万级 ID Embedding、文本图像和长序列不自然；叶子分布变化会使后级 LR 特征漂移。</p><p>GBDT+LR 先用提升树学习连续阈值和条件组合，再把每棵树命中的叶子 one-hot 交给 LR 输出概率。GBDT 负责自动交叉，LR 负责稀疏组合和校准。它在统计特征上很稳，但分阶段训练、ID 泛化和序列建模能力不如端到端深度模型。</p><h3>4.5 Wide &amp; Deep</h3><p><b>使用阶段：</b> Wide &amp; Deep，宽度与深度联合模型，主要用于排序。Wide 侧负责 Memorization，记忆已观察到的有效规则；Deep 侧负责 Generalization，泛化到未直接见过但表示相似的组合。</p><p><b>Wide 部分：</b> 线性模型接原始稀疏特征和人工 Cross-product Transformation，交叉乘积特征。例如：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cphi_k%28%5Cmathbf+x%29%3D%5Cprod_%7Bi%3D1%7D%5E%7Bd%7Dx_i%5E%7Bc_%7Bki%7D%7D%2C+%5Cqquad+c_%7Bki%7D%5Cin%5C%7B0%2C1%5C%7D.+" alt=" \phi_k(\mathbf x)=\prod_{i=1}^{d}x_i^{c_{ki}}, \qquad c_{ki}\in\{0,1\}. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=c_%7Bki%7D%3D1" alt="c_{ki}=1" loading="lazy"></figure> 表示第 <figure><img src="https://www.zhihu.com/equation?tex=k" alt="k" loading="lazy"></figure> 个交叉是否包含特征 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure>。若“用户已安装某应用”和“候选应用属于同类”这一组合历史上转化很好，Wide 可直接记住较大的正权重。</p><p><b>Deep 部分：</b> 类别特征先查 Embedding，将各 Field 向量与连续特征拼接，再经多层 MLP。不同 ID 可通过邻近 Embedding 共享统计强度，从而给未出现过的组合合理分数。</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Coperatorname%7Blogit%7D%3D%5Cmathbf+w_%7B%5Cmathrm%7Bwide%7D%7D%5E%7B%5Cmathsf+T%7D%5Cmathbf+x_%7B%5Cmathrm%7Bwide%7D%7D+%2B%5Cmathbf+w_%7B%5Cmathrm%7Bdeep%7D%7D%5E%7B%5Cmathsf+T%7D%5Cmathbf+h_%7B%5Cmathrm%7Bdeep%7D%7D%2Bb.+" alt=" \operatorname{logit}=\mathbf w_{\mathrm{wide}}^{\mathsf T}\mathbf x_{\mathrm{wide}} +\mathbf w_{\mathrm{deep}}^{\mathsf T}\mathbf h_{\mathrm{deep}}+b. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+h_%7B%5Cmathrm%7Bdeep%7D%7D" alt="\mathbf h_{\mathrm{deep}}" loading="lazy"></figure> 是 MLP 最后一层表示。两侧 logit 相加后接 Sigmoid，并由同一个 BCE 联合训练；不是先训练 Wide 再训练 Deep。</p><p><b>为什么两侧都需要：</b> 纯 Wide 依赖频繁共现，无法为低频或新组合泛化；纯 Deep 可能 Over-generalize，过度泛化，例如因为两个应用向量相近而推荐一个不合业务规则的替代品。Wide 像精确规则，Deep 像平滑相似性。</p><p><b>输入输出与训练：</b> Wide 与 Deep 可使用相同原始样本，但特征处理不同。输出是点击、安装或购买概率；训练常用 BCE，并可配合 FTRL 更新 Wide、AdaGrad 或 Adam 更新 Deep。</p><p><b>优点：</b> 同时保留稀疏规则记忆和向量泛化；结构清楚；宽侧易加入业务交叉；联合训练使两部分围绕同一目标分工。</p><p><b>局限：</b> Wide 侧仍依赖人工设计交叉，容易遗漏并产生组合爆炸；Deep 侧通过 MLP 隐式学习交互，样本效率和可解释性有限；两套特征工程会增加维护成本。</p><p><b>与 DeepFM/DCN 的关系：</b> DeepFM 用 FM 自动产生二阶交互，减少 Wide 人工交叉；DCN 用 Cross Network 递归产生有界高阶交互。它们都保留“显式交互 + 深层隐式交互”的思想。</p><p>Wide&amp;Deep 将记忆与泛化放在一个联合目标中：Wide 用线性模型和人工交叉记住高置信组合，Deep 用 Embedding 与 MLP 泛化到未见组合。它的关键是两种归纳偏置互补，不只是把两个网络拼在一起。局限是 Wide 仍需人工交叉，因此后续 DeepFM 和 DCN 重点解决自动交互。</p><h3>4.6 PNN</h3><p>Product-based Neural Network，基于乘积的神经网络。它发现仅把各 Field Embedding 拼接给 MLP，乘法式组合不一定容易学，因此在输入层和 MLP 之间增加 Product Layer，乘积层。</p><p><b>结构步骤：</b></p><ol><li>每个非零 Field 得到向量 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+e_i" alt="\mathbf e_i" loading="lazy"></figure>；</li><li>Linear Signal，线性信号，保留各 Field 的原始向量信息；</li><li>Product Signal，乘积信号，显式计算字段对；</li><li>将线性信号和乘积信号拼接，送入 DNN 预测 CTR。</li></ol><p><b>IPNN，内积 PNN：</b> 对字段 <figure><img src="https://www.zhihu.com/equation?tex=i%2Cj" alt="i,j" loading="lazy"></figure> 计算标量：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+p_%7Bij%7D%5E%7B%5Cmathrm%7Binner%7D%7D%3D%5Clangle%5Cmathbf+e_i%2C%5Cmathbf+e_j%5Crangle.+" alt=" p_{ij}^{\mathrm{inner}}=\langle\mathbf e_i,\mathbf e_j\rangle. " loading="lazy"></figure></p><p>它参数和计算较省，但将 <figure><img src="https://www.zhihu.com/equation?tex=d" alt="d" loading="lazy"></figure> 维交互压成一个数，细节损失较大。</p><p><b>OPNN，外积 PNN：</b> 计算矩阵：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathbf+P_%7Bij%7D%5E%7B%5Cmathrm%7Bouter%7D%7D%3D%5Cmathbf+e_i%5Cmathbf+e_j%5E%7B%5Cmathsf+T%7D.+" alt=" \mathbf P_{ij}^{\mathrm{outer}}=\mathbf e_i\mathbf e_j^{\mathsf T}. " loading="lazy"></figure></p><p>外积保留“第 a 维与第 b 维如何组合”，表达更丰富，但每个字段对产生 <figure><img src="https://www.zhihu.com/equation?tex=d%5Ctimes+d" alt="d\times d" loading="lazy"></figure> 矩阵，通常需要求和、低秩化或核技巧降低成本。</p><p><b>为什么乘积层有效：</b> MLP 的线性层加激活可以逼近乘法，但要从稀疏数据中自己发现这种关系。Product Layer 把“两个特征共同出现”作为明确输入，提供更适合 CTR 的归纳偏置。</p><p><b>优点：</b> 减少人工交叉；显式向 DNN 提供字段对乘法信号；IPNN/OPNN 提供不同表达力与成本选择。</p><p><b>局限：</b> 字段对数量为 <figure><img src="https://www.zhihu.com/equation?tex=O%28F%5E2%29" alt="O(F^2)" loading="lazy"></figure>；OPNN 内存和计算更大；乘积层主要显式表示二阶，高阶仍由 MLP 隐式学习；所有字段对都算可能引入噪声。</p><p><b>与 DeepFM 的关系：</b> PNN 把各对乘积作为 DNN 输入，DeepFM 则让 FM 分支直接输出二阶分数并与 DNN 分支相加。PNN 的交互更深地参与后续非线性，DeepFM 的结构更简洁。</p><p>PNN 在 Embedding 和 MLP 之间加入乘积层，IPNN 用字段向量内积，OPNN 用外积，直接向深网提供乘法式二阶关系。它比纯拼接 MLP 更有交互归纳偏置，但字段对是平方复杂度，外积版本尤其昂贵。</p><h3>4.7 NFM</h3><p>Neural Factorization Machine，神经因子分解机。它把 FM 的二阶交互保留为向量，再交给 MLP 学习非线性组合。</p><p><b>Bi-Interaction Pooling，双交互池化：</b> “Bi” 表示两两交互，“Pooling”表示把数量众多的特征对聚成一个固定长度向量：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathbf+z%3D%5Csum_%7Bi%3Cj%7D%28%5Cmathbf+v_ix_i%29%5Codot%28%5Cmathbf+v_jx_j%29+%3D%5Cfrac12%5Cleft%5B%5Cleft%28%5Csum_i%5Cmathbf+v_ix_i%5Cright%29%5E2-%5Csum_i%28%5Cmathbf+v_ix_i%29%5E2%5Cright%5D.+" alt=" \mathbf z=\sum_{i&lt;j}(\mathbf v_ix_i)\odot(\mathbf v_jx_j) =\frac12\left[\left(\sum_i\mathbf v_ix_i\right)^2-\sum_i(\mathbf v_ix_i)^2\right]. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Codot" alt="\odot" loading="lazy"></figure> 是逐元素乘法；公式中的平方也是逐元素平方。<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+z" alt="\mathbf z" loading="lazy"></figure> 的维度仍是 Embedding 维度 <figure><img src="https://www.zhihu.com/equation?tex=k" alt="k" loading="lazy"></figure>，不会随 Field 数平方增长。与 FM 最终把交互向量所有维度求和成标量不同，NFM 保留每一潜在维度上的交互强度。</p><p><b>完整结构：</b> 稀疏输入先查 Embedding，经过双交互池化得到 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+z" alt="\mathbf z" loading="lazy"></figure>，可接 BatchNorm、Dropout，再送入 MLP，最后输出：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Chat+y%3Dw_0%2B%5Csum_iw_ix_i+%2B%5Cmathbf+h%5E%7B%5Cmathsf+T%7D%5Coperatorname%7BMLP%7D%28%5Cmathbf+z%29.+" alt=" \hat y=w_0+\sum_iw_ix_i +\mathbf h^{\mathsf T}\operatorname{MLP}(\mathbf z). " loading="lazy"></figure></p><p><b>为什么可学高阶：</b> <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+z" alt="\mathbf z" loading="lazy"></figure> 已包含所有二阶乘积，后续 MLP 对这些二阶信号做非线性组合，能够隐式形成更高阶模式。例如某隐藏单元可同时响应“年龄×行业”和“时段×设备”的组合。</p><p><b>优点：</b> 计算仍近似 <figure><img src="https://www.zhihu.com/equation?tex=O%28nk%29" alt="O(nk)" loading="lazy"></figure>；比 FM 的标量二阶和更有表达力；无需显式枚举所有字段对；参数量通常比 PNN 外积小。</p><p><b>局限：</b> 所有二阶交互先求和，无法知道某个信号具体来自哪一对 Field，存在信息混叠；高阶交互仍由 MLP 隐式获得；池化过早可能让重要与噪声交互相互抵消。</p><p><b>与 FM、DeepFM 比较：</b> FM 对二阶交互直接线性求和；NFM 将聚合后的二阶向量送入深网；DeepFM 的深网输入是原始 Field Embedding 拼接，同时另有 FM 分支。NFM 更强调“先交互、再深层”，DeepFM 更强调“低阶与高阶并行”。</p><p>NFM 对所有特征对做逐元素乘法，再用双交互池化聚成一个 Embedding 维向量，交给 MLP 学习非线性高阶模式。它保持 FM 的线性计算复杂度并增强表达力，但所有字段对过早求和会丢失交互来源。</p><h3>4.8 DeepFM</h3><p>Deep Factorization Machine，深度因子分解机，是 CTR 精排的经典基线。它用 FM 分支学习一阶和显式二阶交互，用 DNN 分支学习隐式高阶交互。</p><p><b>数据流步骤：</b></p><ol><li>每个类别 Field 查共享 Embedding，连续特征可直接输入或先做变换；</li><li>FM 分支计算一阶项和所有二阶内积；</li><li>DNN 分支把各 Field Embedding 按固定顺序拼接，经过多层 MLP；</li><li>两个分支的 logit 相加，接 Sigmoid 输出概率。</li></ol><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Coperatorname%7Blogit%7D%3Dy_%7B%5Cmathrm%7BFM%7D%7D%2By_%7B%5Cmathrm%7BDNN%7D%7D.+" alt=" \operatorname{logit}=y_{\mathrm{FM}}+y_{\mathrm{DNN}}. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=y_%7B%5Cmathrm%7BFM%7D%7D" alt="y_{\mathrm{FM}}" loading="lazy"></figure> 包括线性一阶项和二阶向量内积；<figure><img src="https://www.zhihu.com/equation?tex=y_%7B%5Cmathrm%7BDNN%7D%7D" alt="y_{\mathrm{DNN}}" loading="lazy"></figure> 是 MLP 的标量输出。两侧由同一个 BCE 端到端训练。</p><p><b>共享 Embedding 的意义：</b> Wide&amp;Deep 中 Wide 的人工交叉与 Deep 的 Embedding 可以是两套表示；DeepFM 让 FM 和 DNN 使用同一套向量。低阶交互为稀疏特征提供直接梯度，高阶分支又让向量服务复杂组合，参数更少、训练更紧凑。</p><p><b>为什么不需要人工 Wide Cross：</b> FM 自动为任意非零特征对产生二阶分数，因此无需枚举“城市×行业”等 Wide 特征。不过它只保证二阶，DNN 是否学到有效三阶以上关系仍取决于数据、宽度和优化。</p><p><b>优点：</b> 同时建模低阶与高阶；自动二阶交互；共享 Embedding 降低参数；结构简单、实现成熟，常作为判断新模型是否真正有效的强基线。</p><p><b>局限：</b> FM 默认所有 Field Pair 使用相同内积且没有动态重要性；显式部分只有二阶；DNN 的高阶交互是隐式的；拼接输入维度随 Field 数增加；共享 Embedding 也可能让低阶和高阶分支产生梯度冲突。</p><p><b>与 Wide&amp;Deep 比较：</b> Wide&amp;Deep 的显式记忆可精确承载业务人工规则，DeepFM 的 FM 则自动泛化二阶。若业务中少数手工规则非常关键，可以在 DeepFM 外仍保留线性规则分支。</p><p><b>与 DCN 比较：</b> DeepFM 的高阶主要依赖 MLP，DCN 用 Cross Layer 显式地产生有限阶交叉。DeepFM 更简单，DCN 更强调可控高阶结构。</p><p>DeepFM 由共享 Embedding 的 FM 和 DNN 两个分支组成，FM 自动学习一阶与显式二阶，DNN 从字段向量拼接中隐式学习高阶，两个 logit 相加训练。它相对 Wide&amp;Deep 减少了人工交叉，是强 CTR 基线；局限是显式部分只有二阶，且所有字段对默认同一种内积。</p><h3>4.9 DCN</h3><p>DCN 是 Deep &amp; Cross Network，深度与交叉网络。它用 Cross Network 显式构造有界阶数特征交互，同时保留 Deep Network 学习隐式关系，可并联或串联用于 CTR 排序。</p><p><b>输入：</b> 将所有 Field Embedding 与连续特征拼成 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0%5Cin%5Cmathbb+R%5Ed" alt="\mathbf x_0\in\mathbb R^d" loading="lazy"></figure>。Cross Network 的第 <figure><img src="https://www.zhihu.com/equation?tex=l" alt="l" loading="lazy"></figure> 层为：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathbf+x_%7Bl%2B1%7D%3D%5Cmathbf+x_0%28%5Cmathbf+x_l%5E%7B%5Cmathsf+T%7D%5Cmathbf+w_l%29%2B%5Cmathbf+b_l%2B%5Cmathbf+x_l.+" alt=" \mathbf x_{l+1}=\mathbf x_0(\mathbf x_l^{\mathsf T}\mathbf w_l)+\mathbf b_l+\mathbf x_l. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_l" alt="\mathbf x_l" loading="lazy"></figure> 是当前层表示，<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+w_l%2C%5Cmathbf+b_l%5Cin%5Cmathbb+R%5Ed" alt="\mathbf w_l,\mathbf b_l\in\mathbb R^d" loading="lazy"></figure> 是参数。<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_l%5E%7B%5Cmathsf+T%7D%5Cmathbf+w_l" alt="\mathbf x_l^{\mathsf T}\mathbf w_l" loading="lazy"></figure> 先得到一个标量，再与原始输入 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0" alt="\mathbf x_0" loading="lazy"></figure> 相乘；最后加残差 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_l" alt="\mathbf x_l" loading="lazy"></figure>，保留此前所有阶数的信息。</p><p><b>为什么每层增加一阶：</b> 第一层含 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0%28%5Cmathbf+x_0%5E%7B%5Cmathsf+T%7D%5Cmathbf+w_0%29" alt="\mathbf x_0(\mathbf x_0^{\mathsf T}\mathbf w_0)" loading="lazy"></figure>，它是输入两两乘积，因此最高二阶；第二层再次乘 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0" alt="\mathbf x_0" loading="lazy"></figure>，最高三阶。堆叠 <figure><img src="https://www.zhihu.com/equation?tex=L" alt="L" loading="lazy"></figure> 层后，最高是 <figure><img src="https://www.zhihu.com/equation?tex=L%2B1" alt="L+1" loading="lazy"></figure> 阶，同时残差保留低阶项。这里“阶”指原始输入变量相乘的次数。</p><p><b>参数为何少：</b> 每层只有两个长度为 <figure><img src="https://www.zhihu.com/equation?tex=d" alt="d" loading="lazy"></figure> 的向量，参数量 <figure><img src="https://www.zhihu.com/equation?tex=O%28d%29" alt="O(d)" loading="lazy"></figure>，<figure><img src="https://www.zhihu.com/equation?tex=L" alt="L" loading="lazy"></figure> 层为 <figure><img src="https://www.zhihu.com/equation?tex=O%28dL%29" alt="O(dL)" loading="lazy"></figure>，没有显式枚举 <figure><img src="https://www.zhihu.com/equation?tex=d%5E2" alt="d^2" loading="lazy"></figure> 个特征对。代价是所有交叉通过同一个标量 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_l%5E%7B%5Cmathsf+T%7D%5Cmathbf+w_l" alt="\mathbf x_l^{\mathsf T}\mathbf w_l" loading="lazy"></figure> 调制，属于非常受限的低秩形式。</p><p><b>与 Deep 分支的组合：</b></p><ul><li>Parallel，并联：Cross 和 MLP 都读 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0" alt="\mathbf x_0" loading="lazy"></figure>，最后拼接输出；</li><li>Stacked，串联：先经过 Cross 再送 MLP，或反过来；</li><li>并联让两种表示相对独立，串联让 MLP 继续加工显式交叉，实际应通过效果与延迟验证。</li></ul><p><b>优点：</b> 无需人工枚举交叉；交叉最高阶数由层数控制；参数和计算高效；显式分支与 MLP 互补。</p><p><b>局限：</b> 原版 Cross Layer 的矩阵等效秩很低，不同输出维度共享同一个缩放信号，表达能力有限；把所有 Field 拼成 bit-wise，逐维，向量后，字段语义不如 CIN 清楚；高阶不一定等于有用，层数过深可能引入噪声。</p><p>DCN 的 Cross Layer 用原始输入 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0" alt="\mathbf x_0" loading="lazy"></figure> 反复乘当前表示，每加一层最高交互阶数增加一阶，残差保留低阶信息。它以 <figure><img src="https://www.zhihu.com/equation?tex=O%28dL%29" alt="O(dL)" loading="lazy"></figure> 参数自动产生有界高阶交互，但原版每层只生成一个标量去缩放 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0" alt="\mathbf x_0" loading="lazy"></figure>，表达受限，因此 DCN-V2 将其升级为矩阵交叉。</p><h3>4.10 DCN-V2</h3><p>DCN-V2 是 Deep &amp; Cross Network Version 2，第二代深度交叉网络。它针对原版 DCN 的 Cross Layer 表达能力不足，引入完整矩阵变换和低秩混合专家。</p><p><b>核心 Cross Layer：</b></p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathbf+x_%7Bl%2B1%7D%3D%5Cmathbf+x_0%5Codot%28%5Cmathbf+W_l%5Cmathbf+x_l%2B%5Cmathbf+b_l%29%2B%5Cmathbf+x_l.+" alt=" \mathbf x_{l+1}=\mathbf x_0\odot(\mathbf W_l\mathbf x_l+\mathbf b_l)+\mathbf x_l. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=%5Codot" alt="\odot" loading="lazy"></figure> 是逐元素乘法，<figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+W_l%5Cin%5Cmathbb+R%5E%7Bd%5Ctimes+d%7D" alt="\mathbf W_l\in\mathbb R^{d\times d}" loading="lazy"></figure>。先用矩阵让当前所有维度充分混合，再由每个 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+x_0" alt="\mathbf x_0" loading="lazy"></figure> 维度逐项调制，所以不同输出维可以形成不同交叉模式，不再共享同一个标量。</p><p><b>成本问题：</b> 完整矩阵每层需要 <figure><img src="https://www.zhihu.com/equation?tex=d%5E2" alt="d^2" loading="lazy"></figure> 参数，输入维度大时成本很高。DCN-V2 使用 Low-rank Factorization，低秩分解：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathbf+W%3D%5Cmathbf+U%5Cmathbf+V%5E%7B%5Cmathsf+T%7D%2C+%5Cqquad+%5Cmathbf+U%2C%5Cmathbf+V%5Cin%5Cmathbb+R%5E%7Bd%5Ctimes+r%7D%2C%5Cquad+r%5Cll+d.+" alt=" \mathbf W=\mathbf U\mathbf V^{\mathsf T}, \qquad \mathbf U,\mathbf V\in\mathbb R^{d\times r},\quad r\ll d. " loading="lazy"></figure></p><p>计算从 <figure><img src="https://www.zhihu.com/equation?tex=O%28d%5E2%29" alt="O(d^2)" loading="lazy"></figure> 降为 <figure><img src="https://www.zhihu.com/equation?tex=O%28dr%29" alt="O(dr)" loading="lazy"></figure>。<figure><img src="https://www.zhihu.com/equation?tex=r" alt="r" loading="lazy"></figure> 是秩上限，越大表达越强、成本越高。</p><p><b>CrossNet-Mix，混合交叉网络：</b> 使用多个低秩专家表示不同交叉子空间，并由门控按样本融合：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+%5Cmathbf+x_%7Bl%2B1%7D+%3D%5Cmathbf+x_l%2B%5Csum_%7Be%3D1%7D%5E%7BE%7Dg_e%28%5Cmathbf+x_l%29+%5Cleft%5B%5Cmathbf+x_0%5Codot+%5Cmathbf+U_e%5C%2C%5Cphi%5C%21%5Cleft%28%5Cmathbf+V_e%5E%7B%5Cmathsf+T%7D%5Cmathbf+x_l%5Cright%29%5Cright%5D.+" alt=" \mathbf x_{l+1} =\mathbf x_l+\sum_{e=1}^{E}g_e(\mathbf x_l) \left[\mathbf x_0\odot \mathbf U_e\,\phi\!\left(\mathbf V_e^{\mathsf T}\mathbf x_l\right)\right]. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=E" alt="E" loading="lazy"></figure> 是专家数，<figure><img src="https://www.zhihu.com/equation?tex=g_e" alt="g_e" loading="lazy"></figure> 是经过 Softmax 的门控权重，<figure><img src="https://www.zhihu.com/equation?tex=%5Cphi" alt="\phi" loading="lazy"></figure> 是非线性激活。不同样本可选择不同专家，例如价格敏感用户与品牌敏感用户走不同交叉子空间。</p><p><b>Stacked 与 Parallel：</b> DCN-V2 系统比较了串联和并联结构。并联将 Cross 输出与 DNN 输出拼接；串联让 Cross 结果继续进入 DNN。没有一条结构对所有数据都绝对最好，要结合参数量与特征分布验证。</p><p><b>优点：</b> 比原 DCN 的向量参数表达更强；显式构造有界高阶；低秩和混合专家使精度与成本可调；适合大规模排序中的复杂特征交叉。</p><p><b>局限与工程点：</b> 完整矩阵昂贵；低秩 <figure><img src="https://www.zhihu.com/equation?tex=r" alt="r" loading="lazy"></figure>、专家数 <figure><img src="https://www.zhihu.com/equation?tex=E" alt="E" loading="lazy"></figure>、层数和并串联方式需要联合调节；门控可能只偏向少数专家；所有输入拼接后交叉，仍需注意不同 Field 尺度和连续特征归一化。</p><p><b>DeepFM vs DCN-V2：</b> DeepFM 的显式部分固定为二阶 FM，高阶交给 MLP 隐式学习；DCN-V2 通过堆叠矩阵 Cross Layer 显式生成有界高阶。DeepFM 更轻更稳，DCN-V2 在交叉关系复杂、数据量足够时通常更有表达力，但成本和超参更多。</p><p>DCN-V2 将原版 DCN 的标量交叉升级为矩阵交叉，让不同输出维学习不同组合；再用低秩分解把 <figure><img src="https://www.zhihu.com/equation?tex=O%28d%5E2%29" alt="O(d^2)" loading="lazy"></figure> 降到 <figure><img src="https://www.zhihu.com/equation?tex=O%28dr%29" alt="O(dr)" loading="lazy"></figure>，并可通过多个低秩专家和门控按样本选择交叉子空间。它比 DCN 和 DeepFM 的显式分支更强，但需要控制矩阵、专家与路由成本。</p><h3>4.11 xDeepFM</h3><p>xDeepFM 可理解为 eXtreme Deep Factorization Machine，强调显式向量级高阶交互。整体由 Linear、CIN 和 DNN 三部分组成：</p><ul><li>Linear，线性分支，学习一阶记忆；</li><li>CIN，Compressed Interaction Network，压缩交互网络，学习显式高阶；</li><li>DNN，深度分支，学习隐式高阶。</li></ul><p><b>CIN 的输入：</b> 假设有 <figure><img src="https://www.zhihu.com/equation?tex=F" alt="F" loading="lazy"></figure> 个 Field，每个 Embedding 维度为 <figure><img src="https://www.zhihu.com/equation?tex=D" alt="D" loading="lazy"></figure>，输入矩阵 <figure><img src="https://www.zhihu.com/equation?tex=%5Cmathbf+X%5E0%5Cin%5Cmathbb+R%5E%7BF%5Ctimes+D%7D" alt="\mathbf X^0\in\mathbb R^{F\times D}" loading="lazy"></figure>。CIN 第 <figure><img src="https://www.zhihu.com/equation?tex=k" alt="k" loading="lazy"></figure> 层的第 <figure><img src="https://www.zhihu.com/equation?tex=h" alt="h" loading="lazy"></figure> 个特征图在每个 Embedding 维 <figure><img src="https://www.zhihu.com/equation?tex=d" alt="d" loading="lazy"></figure> 上计算：</p><p><figure><img src="https://www.zhihu.com/equation?tex=+X%5Ek_%7Bh%2Cd%7D+%3D%5Csum_%7Bi%3D1%7D%5E%7BH_%7Bk-1%7D%7D%5Csum_%7Bj%3D1%7D%5E%7BF%7D+W%5E%7Bk%2Ch%7D_%7Bij%7DX%5E%7Bk-1%7D_%7Bi%2Cd%7DX%5E0_%7Bj%2Cd%7D.+" alt=" X^k_{h,d} =\sum_{i=1}^{H_{k-1}}\sum_{j=1}^{F} W^{k,h}_{ij}X^{k-1}_{i,d}X^0_{j,d}. " loading="lazy"></figure></p><p><figure><img src="https://www.zhihu.com/equation?tex=H_%7Bk-1%7D" alt="H_{k-1}" loading="lazy"></figure> 是上一层特征图数，<figure><img src="https://www.zhihu.com/equation?tex=W%5E%7Bk%2Ch%7D_%7Bij%7D" alt="W^{k,h}_{ij}" loading="lazy"></figure> 控制“上一层第 <figure><img src="https://www.zhihu.com/equation?tex=i" alt="i" loading="lazy"></figure> 个组合”与“原始第 <figure><img src="https://www.zhihu.com/equation?tex=j" alt="j" loading="lazy"></figure> 个 Field”如何继续交互。参数在 Embedding 维 <figure><img src="https://www.zhihu.com/equation?tex=d" alt="d" loading="lazy"></figure> 上共享，因此模型保留向量维结构，又不会为每一维单独学习巨大矩阵。</p><p><b>为什么叫 Compressed，压缩：</b> 上一层与原始 Field 做外积会产生 <figure><img src="https://www.zhihu.com/equation?tex=H_%7Bk-1%7D%5Ctimes+F" alt="H_{k-1}\times F" loading="lazy"></figure> 个组合，CIN 用 <figure><img src="https://www.zhihu.com/equation?tex=H_k" alt="H_k" loading="lazy"></figure> 组权重把这些组合压成有限个新特征图，控制组合爆炸。</p></div>
-      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+SASRec/BERT4Rec -&gt; TIGER/Semantic ID -&gt; HSTU/OneRec/ReSID/OneReason
+</code></pre>
+<h2>2. 核心概念</h2>
+<h3>2.1 召回、粗排、精排、重排</h3>
+<ul>
+<li><strong>召回</strong>：从百万到亿级候选中找几百到几千个，优先覆盖与吞吐；</li>
+<li><strong>粗排</strong>：用较低成本模型压缩候选，兼顾精排一致性；</li>
+<li><strong>精排</strong>：复杂特征交互、序列建模、多任务预估；</li>
+<li><strong>重排/混排</strong>：加入多样性、频控、广告密度、预算、拍卖和长期体验约束。</li>
+</ul>
+<p>同一个模型是否合适，取决于阶段。DIN 对每个候选做 target attention，精排可接受，亿级召回不可接受；双塔可做 ANN 召回，但细粒度交叉能力较弱。</p>
+<h3>2.2 显式交互与隐式交互</h3>
+<ul>
+<li><strong>显式</strong>：结构保证特定阶数或形式的交叉，例如 FM 二阶项、DCN Cross Layer、xDeepFM CIN；</li>
+<li><strong>隐式</strong>：MLP 理论上能拟合交互，但没有明确交叉结构，例如 Wide&amp;Deep 的 deep 部分；</li>
+<li><strong>向量级交互</strong>：保留 embedding 各维结构，如 CIN；</li>
+<li><strong>bit-wise 交互</strong>：拼接后由 MLP 在单维层面混合。</li>
+</ul>
+<h3>2.3 Target-aware 与 Target-agnostic</h3>
+<ul>
+<li><strong>Target-aware，目标感知</strong>：目标候选参与用户兴趣提取。同一段历史面对不同广告会得到不同用户表示，例如 DIN 会用目标广告查询历史行为。它表达更精确，但每换一个候选都可能重算。</li>
+<li><strong>Target-agnostic，目标无关</strong>：先得到与候选无关的固定用户向量，再与不同候选打分，例如双塔。用户向量可以缓存，适合大规模召回，但难以描述“用户对这个候选具体感兴趣在哪里”。</li>
+</ul>
+<h3>2.4 排序能力与概率校准</h3>
+<p>AUC 高只说明正负样本相对顺序较好。广告出价需要概率绝对值，因此还要看 LogLoss、NE、ECE、分桶真实率/预测率，并做下采样先验修正或后校准。</p>
+<h3>2.5 常见名词</h3>
+<h4>2.5.1 Embedding、Field</h4>
+<ul>
+<li><strong>Embedding，嵌入表示</strong>：把离散 ID 或类别映射为可训练的低维稠密向量。例如广告 ID 可能有上亿种，不能直接使用同样长度的 one-hot 向量，因而用查表方式取出 $d$ 维向量。相似广告在训练后通常会落在相近的向量区域。</li>
+<li><strong>Field，特征域</strong>：一组语义相同、只取一个或少量值的特征位置，例如“用户城市”“广告行业”“设备类型”。FM、FFM、AutoInt 常以 field 为交互单位。</li>
+<li><strong>One-hot，独热编码</strong>：长度等于类别总数，仅当前类别位置为 1，其余为 0。它没有类别相似性，且维度极高；Embedding 本质上等价于用 one-hot 向量从参数矩阵中取一行。</li>
+</ul>
+<h4>2.5.2 Pooling、Attention 与 Gate</h4>
+<ul>
+<li><strong>Pooling，池化或聚合</strong>：把数量可变的一组向量变成固定长度向量。Sum Pooling 是求和，Mean Pooling 是求平均，Max Pooling 是逐维取最大值。简单池化不区分历史行为的重要性。</li>
+<li><strong>Attention，注意力机制</strong>：根据“查询向量”和每个候选元素的匹配程度计算权重，再加权求和。它回答的是“当前任务下应该重点看哪些输入”。</li>
+<li><strong>Self-Attention，自注意力</strong>：同一序列内部各位置相互查询，用于建模行为之间的依赖。例如“先搜索相机，再浏览镜头”具有组合意义。</li>
+<li><strong>Cross-Attention，交叉注意力</strong>：一组向量作为查询，另一组向量提供键和值。例如目标广告作为查询，从用户历史中提取相关兴趣。</li>
+<li><strong>Gate，门控</strong>：产生 0 到 1 或归一化权重，决定信息通过多少。门控可用于融合短期与长期兴趣，也可在 MMoE 中为不同任务选择专家。</li>
+<li><strong>Target Attention，目标注意力</strong>：目标候选参与权重计算，是 Cross-Attention 在推荐中的常见形式。DIN 的“局部激活单元”就属于目标注意力。</li>
+</ul>
+<p>标准缩放点积注意力为：</p>
+<p>$$
+\operatorname{Attention}(Q,K,V)
+=\operatorname{softmax}!\left(\frac{QK^{\mathsf T}}{\sqrt d}\right)V.
+$$</p>
+<p>其中 $Q$ 是查询矩阵，$K$ 是键矩阵，$V$ 是值矩阵，$d$ 是键向量维度。除以 $\sqrt d$ 是为了避免维度较大时点积数值过大，导致 softmax 过早饱和。</p>
+<h4>2.5.3 MLP、Residual、LayerNorm 与激活函数</h4>
+<ul>
+<li><strong>MLP，多层感知机</strong>：若干“线性变换 + 非线性激活”堆叠而成，用来学习复杂的隐式特征交互。</li>
+<li><strong>FFN，前馈网络</strong>：Transformer 中对每个 token 独立应用的 MLP，一般先升维、激活，再降维。</li>
+<li><strong>Residual Connection，残差连接</strong>：将模块输入直接加到输出上，即 $y=x+F(x)$。它保留原始信息并让深层网络更容易传播梯度。</li>
+<li><strong>Layer Normalization，层归一化</strong>：对单个样本某一层的特征维做标准化，稳定序列模型训练；它不依赖同一批次中的其他样本。</li>
+<li><strong>ReLU，线性整流激活</strong>：$\max(0,x)$，计算便宜，但负半轴梯度为零。</li>
+<li><strong>PReLU，参数化 ReLU</strong>：负半轴保留可学习斜率 $ax$。</li>
+<li><strong>Dice，数据自适应激活</strong>：DIN 中常见。它根据输入分布估计“为正”的概率，在 $x$ 与 $\alpha x$ 之间自适应切换，比固定零点的 PReLU 更适合分布变化明显的推荐特征。</li>
+<li><strong>SiLU/Swish，平滑门控激活</strong>：$x\sigma(x)$，既保留负值信息又具有平滑梯度，现代 Transformer 中较常见。</li>
+</ul>
+<h4>2.5.4 Pointwise、Pairwise 与 Listwise 排序</h4>
+<ul>
+<li><strong>Pointwise，逐点学习</strong>：把每个样本独立看成分类或回归问题，例如用二元交叉熵预测是否点击。它直接输出概率，便于校准，但没有显式比较两个候选的先后。</li>
+<li><strong>Pairwise，成对学习</strong>：构造正样本 $i$ 与负样本 $j$，要求正样本分数更高。典型 BPR 损失为 $-\log\sigma(s_i-s_j)$。它更贴近相对排序，但输出不天然是校准概率。</li>
+<li><strong>Listwise，列表学习</strong>：一次考虑整个候选列表或其近似分布，例如 ListNet、LambdaLoss。它更贴近 NDCG 等列表指标，但样本构造与计算更复杂。</li>
+</ul>
+<h4>2.5.5 Softmax、负采样与对比学习</h4>
+<ul>
+<li><strong>Softmax，归一化指数函数</strong>：把多个候选分数转为总和为 1 的概率。若物品有上亿个，计算全量分母代价太高。</li>
+<li><strong>Sampled Softmax，采样近似 Softmax</strong>：只保留正样本和少量采样负样本近似全量分类。若负样本不是均匀采样，通常需要用采样概率 $q(i)$ 做 $-\log q(i)$ 修正，避免热门物品被过度采样后造成偏差。</li>
+<li><strong>In-batch Negatives，批内负样本</strong>：一个 batch 中其他样本的正物品，直接作为当前用户的负物品。它几乎不增加编码成本，但可能把用户实际喜欢、只是本次未点击的物品当成假负样本。</li>
+<li><strong>Hard Negative，困难负样本</strong>：模型容易混淆但标签为负的候选，例如已召回且分数较高、最终未点击的广告。它提供更强训练信号，但过难或含噪的负样本会破坏训练。</li>
+<li><strong>Contrastive Learning，对比学习</strong>：拉近正样本表示、推远负样本表示。双塔常用的批内 softmax 就是一种对比学习。</li>
+<li><strong>Temperature，温度系数</strong>：分数除以温度 $\tau$ 后再做 softmax。较小的 $\tau$ 让分布更尖锐、更强调难负样本，也可能导致梯度不稳定。</li>
+</ul>
+<h4>2.5.6 ANN、MIPS 与向量检索</h4>
+<ul>
+<li><strong>ANN，近似最近邻检索</strong>：不保证找到数学上绝对最近的向量，而是在可接受误差下大幅降低检索耗时。常见索引包括 HNSW 图索引、IVF 倒排聚类和 PQ 乘积量化。</li>
+<li><strong>MIPS，最大内积搜索</strong>：寻找与用户向量内积最大的物品。双塔用内积打分时，线上召回就是 MIPS 问题。</li>
+<li><strong>Recall@K，前 K 召回率</strong>：真实正样本是否出现在召回的前 K 个结果中。ANN 的系统评估要同时看 Recall@K、延迟、内存和索引更新成本。</li>
+</ul>
+<h4>2.5.7 显式交互、隐式交互与低秩分解</h4>
+<ul>
+<li><strong>Explicit Interaction，显式交互</strong>：网络结构明确规定如何组合特征，例如 FM 的二阶内积、DCN 的 Cross Layer。其归纳偏置清楚，更容易解释。</li>
+<li><strong>Implicit Interaction，隐式交互</strong>：把特征拼接后交给 MLP 自动学习，没有规定具体交叉形式。表达灵活，但在稀疏数据下可能更难学到有效组合。</li>
+<li><strong>Low-rank Factorization，低秩分解</strong>：用两个窄矩阵近似一个大矩阵，或用两个低维向量内积近似海量交叉参数。它假设复杂关系主要位于低维潜在空间，可减少参数和计算。</li>
+</ul>
+<h4>2.5.8 Calibration、Bias 与数据泄漏</h4>
+<ul>
+<li><strong>Calibration，概率校准</strong>：预测为 0.1 的样本中应约有 10% 真正点击。广告系统常把 pCTR/pCVR 与出价相乘，因此校准错误会直接影响拍卖和预算。</li>
+<li><strong>Selection Bias，选择偏差</strong>：训练样本只来自历史策略展示过的候选，并非全空间随机样本。CVR 又只在点击样本上观察，偏差更明显。</li>
+<li><strong>Position Bias，位置偏差</strong>：高位置天然获得更多点击，标签同时反映相关性和展示位置。可加入位置特征、做随机实验或使用反事实估计缓解。</li>
+<li><strong>Data Leakage，数据泄漏</strong>：训练时使用了预测时不可获得的信息，例如把转化后的行为、未来统计量或目标样本本身混入历史序列。离线指标会虚高，线上无法复现。</li>
+</ul>
+<h2>3. 经典召回与表示学习</h2>
+<h3>3.1 ItemCF / UserCF</h3>
+<p><strong>使用阶段：</strong> Item-based Collaborative Filtering，基于物品的协同过滤；User-based Collaborative Filtering，基于用户的协同过滤。二者都属于邻域方法，主要用于召回，也可作为排序特征。</p>
+<p><strong>解决的问题：</strong> 在没有完整内容理解的情况下，利用“很多用户共同发生过行为”推断相似性。这里的 Collaborative，协同，指的是借助群体行为，而不是只看当前用户自己。</p>
+<p><strong>ItemCF 的计算步骤：</strong></p>
+<ol>
+<li>把曝光、点击、收藏或购买整理成用户到物品的交互集合；</li>
+<li>对同一用户交互过的物品两两统计共现次数；</li>
+<li>对热门物品做归一化，得到物品相似度；</li>
+<li>取用户最近或权重最高的历史物品，查相似物品表；</li>
+<li>将多条历史产生的候选分数累加、去重并截取 Top-K。</li>
+</ol>
+<p>最常见的余弦式相似度为：</p>
+<p>$$
+\operatorname{sim}(i,j)
+=\frac{|U_i\cap U_j|}{\sqrt{|U_i||U_j|}}.
+$$</p>
+<p>其中 $U_i$ 是与物品 $i$ 发生过行为的用户集合，分子是同时与 $i,j$ 交互的用户数，分母抑制两个热门物品仅因流量大而产生的虚假相似。</p>
+<p>给用户 $u$ 推荐物品 $j$ 时可计算：</p>
+<p>$$
+s(u,j)=\sum_{i\in I_u}w_{ui}\operatorname{sim}(i,j).
+$$</p>
+<p>$I_u$ 是用户历史物品集合，$w_{ui}$ 可综合行为类型、行为次数和时间衰减。例如点击权重小于购买权重，较久远行为乘以 $\exp(-\lambda\Delta t)$。</p>
+<p><strong>热门用户修正：</strong> 若一个用户与成千上万个物品交互，他造成的任意两物品共现可信度较低。可让该用户对共现的贡献变为 $1/\log(1+|I_u|)$，这叫 IUF，Inverse User Frequency，逆用户频率修正。</p>
+<p><strong>UserCF 的差异：</strong> UserCF 先计算用户之间的相似度，再把相似用户喜欢、当前用户尚未交互的物品作为候选。它更直接地表示“相似人群喜欢什么”，但大规模系统中用户数量、兴趣变化速度和隐私约束通常使用户相似表更难维护；ItemCF 的物品关系往往更稳定。</p>
+<p><strong>训练与更新：</strong> 传统协同过滤没有神经网络训练过程，主要是离线计数、归一化和 Top-K 截断。工程上应处理滑动时间窗、增量更新、热门降权、行为去噪和相似表过期。</p>
+<p><strong>优点：</strong> 实现简单、解释性强、无需模型训练；用户刚发生一次行为后即可立刻触发相关候选，实时性好；适合成为多路召回中的高精度通道。</p>
+<p><strong>局限：</strong> 新用户和新物品缺少共现，存在冷启动；容易强化热门偏置和信息茧房；无法自然使用文本、图片、上下文和广告侧属性；长尾物品共现次数少，估计方差大。</p>
+<h3>3.2 Matrix Factorization</h3>
+<p><strong>使用阶段：</strong> Matrix Factorization，矩阵分解。它把稀疏的用户-物品交互矩阵分解成用户向量和物品向量，可用于召回、相似推荐或作为下游模型的预训练表示。</p>
+<p><strong>核心直觉：</strong> 用户对物品的偏好虽然表面上有巨大维度，但可能主要由少数潜在因素决定，例如价格敏感度、品类偏好、内容风格。MF 不要求人为给这些因素命名，而是从交互数据中学习低维 Latent Factors，潜在因子。</p>
+<p>预测公式为：</p>
+<p>$$
+\hat r_{ui}=\mu+b_u+b_i+\mathbf p_u^{\mathsf T}\mathbf q_i.
+$$</p>
+<p>$\mu$ 是全局平均偏好，$b_u$ 是用户整体活跃或打高分的偏置，$b_i$ 是物品整体热门偏置，$\mathbf p_u,\mathbf q_i\in\mathbb R^d$ 分别是用户与物品的 $d$ 维潜在向量，内积越大表示匹配越强。</p>
+<p><strong>显式评分训练：</strong> 对电影评分等明确数值，可最小化平方误差并加正则：</p>
+<p>$$
+\mathcal L
+=\sum_{(u,i)\in\mathcal D}
+\left(r_{ui}-\hat r_{ui}\right)^2
++\lambda\left(|\mathbf p_u|_2^2+|\mathbf q_i|_2^2+b_u^2+b_i^2\right).
+$$</p>
+<p>正则项限制参数过大，避免模型只记住少量交互。可用 SGD，随机梯度下降，逐样本更新，也可用 ALS，交替最小二乘，固定用户向量求物品向量，再反过来迭代。</p>
+<p><strong>隐式反馈训练：</strong> 点击只能说明“观察到喜欢”，未点击不等于不喜欢，因而常见三种做法：</p>
+<ol>
+<li>Pointwise，逐点二分类：正样本为发生行为的 $(u,i)$，从未观察物品中采负样本，用 BCE 训练；</li>
+<li>Weighted MF，加权矩阵分解：把所有位置看作偏好 0/1，同时让已观察行为具有更高置信度；</li>
+<li>BPR，贝叶斯个性化排序：要求正物品 $i$ 的分数高于负物品 $j$。</li>
+</ol>
+<p>BPR 损失为：</p>
+<p>$$
+\mathcal L_{\mathrm{BPR}}
+=-\sum_{(u,i,j)}\log\sigma
+\left(\hat r_{ui}-\hat r_{uj}\right)+\lambda|\Theta|_2^2.
+$$</p>
+<p>$\sigma$ 是 Sigmoid 函数，$\Theta$ 表示全部参数。若正负分差已经很大，损失接近 0；若负样本分数更高，模型会收到较大惩罚。</p>
+<p><strong>线上召回：</strong> 学到用户向量后，可对物品向量做最大内积 ANN 检索。与 ItemCF 相比，不必要求两个物品直接共现，只要它们在多个潜在因素上相似，就可能相互泛化。</p>
+<p><strong>优点：</strong> 参数形式简洁；从稀疏矩阵中共享统计强度；向量可用于检索、聚类和相似度分析；MF 是理解双塔与 Embedding 的重要起点。</p>
+<p><strong>局限：</strong> 经典 MF 主要依赖 user_id/item_id，难以直接使用年龄、时段、文本、图片等 Side Information，辅助信息；新 ID 没有向量，冷启动明显；静态用户向量难表达短期兴趣和场景变化。</p>
+<h3>3.3 DSSM / 双塔</h3>
+<p><strong>使用阶段：</strong> DSSM 原指 Deep Structured Semantic Model，深层结构化语义模型；推荐系统中更常泛指 Two-Tower Model，双塔模型。它是大规模召回的基础结构，也可用于粗排蒸馏。</p>
+<p><strong>解决的问题：</strong> MF 只能学习 ID 向量，双塔让用户侧和物品侧分别输入丰富特征，同时保持两侧可分离，使所有物品向量能够离线预计算并建立 ANN 索引。</p>
+<p>用户塔和物品塔分别编码：</p>
+<p>$$
+\begin{aligned}
+\mathbf u&amp;=f_{\mathrm{user}}(\mathrm{user},\mathrm{context},\mathrm{history}),\
+\mathbf v&amp;=f_{\mathrm{item}}(\mathrm{item},\mathrm{content}),\
+\operatorname{score}(u,v)&amp;=\mathbf u^{\mathsf T}\mathbf v
+\quad\text{或}\quad\cos(\mathbf u,\mathbf v).
+\end{aligned}
+$$</p>
+<p>$f_{\mathrm{user}}$ 可包含用户 ID、画像、场景和历史序列编码器；$f_{\mathrm{item}}$ 可包含广告 ID、行业、文案、图像和创作者信息。$\mathbf u,\mathbf v$ 必须位于同一向量空间。点积保留向量模长信息，余弦相似度先归一化，只比较夹角。</p>
+<p><strong>数据流步骤：</strong></p>
+<ol>
+<li>对离散特征做 Embedding，对连续特征归一化或分桶；</li>
+<li>用户塔聚合画像、上下文和行为序列，输出一个固定维度用户向量；</li>
+<li>物品塔编码物品 ID 与内容，输出同维度物品向量；</li>
+<li>训练时提高正样本对的内积，降低负样本对的内积；</li>
+<li>服务前批量计算全部物品向量并构建 ANN 索引；</li>
+<li>请求到来时只算一次用户向量，检索 Top-K 物品。</li>
+</ol>
+<p><strong>批内负样本损失：</strong> 假设一个 batch 有 $B$ 对正样本 $(u_b,i_b)$，则用户 $u_b$ 把同 batch 的其他 $i_k$ 当作负样本：</p>
+<p>$$
+\mathcal L_b
+=-\log
+\frac{\exp(s(\mathbf u_b,\mathbf v_b)/\tau)}
+{\sum_{k=1}^{B}\exp(s(\mathbf u_b,\mathbf v_k)/\tau)}.
+$$</p>
+<p>$s$ 是内积或余弦分数，$\tau$ 是温度系数。一个 batch 越大，免费获得的负样本越多，但显存和跨卡通信成本也更高。</p>
+<p><strong>为什么负采样很关键：</strong> 随机负样本通常太容易，模型很快学会；曝光未点击或 ANN 近邻属于困难负样本，更能训练决策边界。若按物品热度 $q(i)$ 采样，热门物品在分母中出现更频繁，可将 logit 改成 $s(u,i)-\log q(i)$ 做采样偏差修正。批内负样本也可能是假负样本：其他用户点击的广告可能同样适合当前用户，只是尚未曝光。</p>
+<p><strong>内积、余弦和欧氏距离：</strong> 当向量都做 L2 归一化时，</p>
+<p>$$
+|\mathbf u-\mathbf v|_2^2
+=2-2\mathbf u^{\mathsf T}\mathbf v,
+$$</p>
+<p>所以最大化余弦等价于最小化欧氏距离。未归一化的内积还利用模长表达热度或置信度，但热门物品可能因向量模长大而占优。</p>
+<p><strong>蒸馏精排：</strong> 让表达力强的精排模型作为 Teacher，教师，为大量用户-候选对产生软分数；双塔 Student，学生，同时学习点击标签和教师分数。它可以把部分交叉特征知识压入可检索空间，但双塔的可分解结构仍决定了表达上限。</p>
+<p><strong>优点：</strong> 检索复杂度低；物品向量可缓存；能够融合 ID、画像和多模态内容；对新物品可依靠内容侧特征获得向量。</p>
+<p><strong>局限与工程成本：</strong> 用户与物品在最终点积前没有细粒度交叉；一个固定用户向量难表达多峰兴趣；负采样分布直接影响效果；ANN 索引存在近似误差、内存消耗、增量更新与新鲜度问题。</p>
+<p><strong>与后续模型的关系：</strong> YouTube DNN 是双塔思想的经典工业化方案；MIND 把一个用户向量扩展为多个兴趣向量；DIN 则放弃物品侧完全可分离，用候选广告查询历史，更适合精排而非亿级召回。</p>
+<p>双塔分别编码用户和物品，用内积或余弦训练匹配空间。训练常用采样 Softmax、批内负样本和困难负样本，线上预计算物品向量并做 ANN 最大内积检索。它把高表达特征编码与大规模检索结合起来，但打分前两侧没有交叉，所以负样本设计、多兴趣表示和精排蒸馏是主要改进方向。</p>
+<h3>3.4 YouTube DNN Candidate Generation</h3>
+<p><strong>使用阶段：</strong> YouTube 深度候选生成模型，是“候选生成 + 排序”两阶段工业推荐架构中的召回模型。Candidate Generation 指从海量视频中生成少量候选，不负责最终精细排序。</p>
+<p><strong>输入与输出：</strong> 输入包含用户观看历史、搜索历史、用户属性和地理等上下文。早期方案将可变长历史的物品 Embedding 求平均，得到固定长度表示，再与其他特征拼接进入 MLP。输出层把“下一个会观看的视频”视为超大规模多分类问题。</p>
+<p><strong>训练目标：</strong> 对一次观看事件 $(u,i^+)$，理想的全量 Softmax 为：</p>
+<p>$$
+p(i^+\mid u)
+=\frac{\exp(\mathbf v_{i^+}^{\mathsf T}\mathbf u)}
+{\sum_{j\in\mathcal V}\exp(\mathbf v_j^{\mathsf T}\mathbf u)}.
+$$</p>
+<p>$\mathcal V$ 是全部视频集合，$\mathbf u$ 是用户网络输出，$\mathbf v_j$ 是分类器中第 $j$ 个视频的权重向量。由于分母可能包含百万到亿级视频，训练用 Sampled Softmax，只计算正样本与少量采样负样本。线上把输出分类器权重当作视频向量，近邻搜索与用户向量内积最大的候选。</p>
+<p><strong>工业设计为何重要：</strong></p>
+<ol>
+<li><strong>按用户等权采样</strong>：若按所有观看事件均匀采样，超活跃用户会贡献大量样本并主导损失；按用户采样让不同用户权重更均衡。</li>
+<li><strong>Example Age，样本年龄</strong>：内容流行度随时间变化。加入训练样本距离训练截止时刻的年龄，让模型知道旧样本所处时间；在线预测时年龄设为 0，从而更偏向新鲜内容。</li>
+<li><strong>避免泄漏</strong>：构造某次观看的用户历史时，只能使用该时刻之前的行为，不能把未来观看或目标视频混入平均池化。</li>
+<li><strong>召回与排序分工</strong>：召回优化覆盖和吞吐，后续排序再加入更多候选相关特征与观看时长目标。</li>
+</ol>
+<p><strong>优点：</strong> 给出了超大类别分类、采样训练和近邻服务的完整工业闭环；历史、搜索和画像能统一进入用户表示；结构简单且可扩展。</p>
+<p><strong>局限：</strong> 对历史直接平均会丢失顺序与多兴趣；用户向量与目标候选无关；采样 Softmax 的训练分布与线上候选分布可能不一致；物品快速变化时要处理索引更新。</p>
+<p><strong>与普通双塔的关系：</strong> 它本质上是双塔式可分解召回，但论文以“用户网络 + 超大分类权重”的形式描述。更重要的贡献是样本构造、时间偏差处理和两阶段系统，而不是发明了复杂交互层。</p>
+<p>YouTube DNN 把候选生成建模为预测下一视频的超大多分类，用户侧聚合观看和搜索历史，通过采样 Softmax 训练，线上把输出层视频权重作为物品向量做 ANN。面试重点不仅是网络，还包括按用户等权采样、样本年龄特征和严格的时间切分，这些用于控制活跃用户偏置、内容非平稳和数据泄漏。</p>
+<h3>3.5 MIND / ComiRec 多兴趣召回</h3>
+<p><strong>使用阶段：</strong> MIND 是 Multi-Interest Network with Dynamic Routing，多兴趣动态路由网络；ComiRec 是 Controllable Multi-Interest Framework，可控多兴趣推荐框架。二者主要解决召回阶段“一个用户只有一个向量”的表达瓶颈。</p>
+<p><strong>问题背景：</strong> 一个用户可能同时喜欢篮球、数码和旅行。普通双塔把所有历史压成 $\mathbf u$，不同兴趣会相互平均，导致用户向量落在没有明确语义的中间区域。多兴趣模型输出 $K$ 个用户向量，每个向量负责一个潜在兴趣簇。</p>
+<p><strong>MIND 的数据流：</strong></p>
+<ol>
+<li>将历史行为物品映射为 Embedding 序列 $\mathbf e_1,\ldots,\mathbf e_L$；</li>
+<li>用 Behavior-to-Interest 动态路由，将行为向量软分配到 $K$ 个兴趣胶囊；</li>
+<li>多轮更新“行为属于哪个兴趣”的耦合权重；</li>
+<li>得到兴趣向量 $\mathbf u_1,\ldots,\mathbf u_K$；</li>
+<li>训练时用目标物品选择最相关兴趣；</li>
+<li>线上每个兴趣向量独立 ANN 召回，再合并、去重和重排。</li>
+</ol>
+<p><strong>动态路由是什么：</strong> Dynamic Routing，动态路由，来自胶囊网络。它不是固定地按时间或品类切分历史，而是迭代完成软聚类。简化写法为：</p>
+<p>$$
+\begin{aligned}
+c_{tk}&amp;=\operatorname{softmax}<em>k(b</em>{tk}),\
+\mathbf z_k&amp;=\sum_{t=1}^{L}c_{tk}\mathbf S\mathbf e_t,\
+\mathbf u_k&amp;=\operatorname{squash}(\mathbf z_k),\
+b_{tk}&amp;\leftarrow b_{tk}+(\mathbf S\mathbf e_t)^{\mathsf T}\mathbf u_k.
+\end{aligned}
+$$</p>
+<p>$c_{tk}$ 表示第 $t$ 个行为分给第 $k$ 个兴趣的软权重；$b_{tk}$ 是尚未归一化的一致性分数；$\mathbf S$ 是变换矩阵；Squash，压缩函数，保持方向并把向量长度压到 0 到 1。若行为与某兴趣方向一致，内积会增大，下一轮该行为被分给该兴趣的权重也会上升。</p>
+<p><strong>目标感知的兴趣选择：</strong> 训练样本只有一个目标物品 $i$，需要确定哪个兴趣负责预测它。可选与目标向量内积最大的兴趣：</p>
+<p>$$
+k^<em>=\arg\max_k\mathbf u_k^{\mathsf T}\mathbf v_i,
+\qquad
+s(u,i)=\mathbf u_{k^</em>}^{\mathsf T}\mathbf v_i.
+$$</p>
+<p>这一步叫 Label-aware Attention，标签感知注意力。也可用带温度的 Softmax 对多个兴趣加权。注意它只在训练或对候选打分时使用目标物品，线上全库召回前不能为每个物品重新聚合兴趣。</p>
+<p><strong>ComiRec 的两种兴趣提取：</strong> ComiRec-DR 使用 Dynamic Routing，动态路由；ComiRec-SA 使用 Self-Attention，自注意力，让 $K$ 个可学习查询分别关注历史中的不同部分。ComiRec 还强调可控聚合，在合并多兴趣候选时加入品类覆盖或多样性目标，而不是只按相关性取分数最高的物品。</p>
+<p><strong>训练与服务：</strong> 训练仍可使用采样 Softmax 或批内负样本。线上通常每个兴趣取 Top-$N$，得到最多 $K\times N$ 个候选，去重后再统一打分。可以根据用户历史复杂度动态决定 $K$，避免短历史用户产生多个噪声兴趣。</p>
+<p><strong>优点：</strong> 减少多峰兴趣被平均的问题；一位用户可从多个语义区域召回候选；提升长尾覆盖和结果多样性；仍保留双塔可 ANN 检索的优点。</p>
+<p><strong>局限与工程成本：</strong> $K$ 需要调节；多个兴趣可能学成相同方向，称为 Interest Collapse，兴趣塌缩；路由迭代和多次 ANN 增加延迟；训练时由目标选择兴趣，线上却要先独立召回，存在训练与推理差异；多路候选合并容易被热门兴趣占满。</p>
+<p><strong>与 DIN 的关系：</strong> MIND 为了全库召回，必须提前产出有限个目标无关兴趣向量；DIN 在候选已经缩小后，可让每个候选直接查询完整历史。因此 MIND 更适合召回，DIN 更适合精排，二者不是替代关系。</p>
+<p>MIND 针对单用户向量无法表达多峰兴趣的问题，用胶囊动态路由把行为软聚成 $K$ 个兴趣向量，训练时由目标物品选择最相关兴趣，线上对每个兴趣分别 ANN 召回再合并。它兼顾表达力和可检索性，但要处理兴趣塌缩、$K$ 的选择、多次检索成本以及训练与推理不一致。</p>
+<h2>4. CTR 特征交互模型</h2>
+<h3>4.1 Logistic Regression</h3>
+<p><strong>使用阶段：</strong> Logistic Regression，逻辑回归。虽然名字包含“回归”，它在 CTR 中是二分类概率模型，常用于排序基线、在线学习、校准层，也常作为复杂模型的最后输出层。</p>
+<p><strong>输入与输出：</strong> 输入 $\mathbf x$ 可以包含连续特征、分桶后的类别特征、one-hot 特征和人工交叉特征；输出是点击概率 $p$：</p>
+<p>$$
+\begin{aligned}
+p(y=1\mid\mathbf x)&amp;=\sigma(\mathbf w^{\mathsf T}\mathbf x+b),\
+\mathcal L&amp;=-y\log p-(1-y)\log(1-p).
+\end{aligned}
+$$</p>
+<p>$\mathbf w$ 是各特征权重，$b$ 是全局偏置，$\sigma(z)=1/(1+e^{-z})$ 把任意实数映射为 0 到 1。$y\in{0,1}$ 是点击标签，$\mathcal L$ 是 Binary Cross-Entropy，二元交叉熵，也就是负对数似然。</p>
+<p><strong>如何解释权重：</strong> 特征 $x_i$ 增加 1 时，点击 Odds，几率 $p/(1-p)$，会乘以 $e^{w_i}$。因此 LR 的系数具有较清楚的统计含义。但在强相关特征、哈希冲突和人工交叉很多时，不能把单个权重直接当作因果作用。</p>
+<p><strong>稀疏 CTR 为什么常用 FTRL：</strong> FTRL 是 Follow-The-Regularized-Leader，带正则的在线累积优化。它为每个参数累计历史梯度，并结合 L1、L2 正则更新：</p>
+<ul>
+<li>L1 正则会把大量不重要的稀疏特征权重压成精确的 0，节省内存；</li>
+<li>自适应学习率让频繁特征更新更谨慎、低频特征仍能获得足够步长；</li>
+<li>参数可按新流量持续增量更新，适合分布不断变化的广告系统。</li>
+</ul>
+<p><strong>人工交叉的作用：</strong> 原始 LR 只有 $\sum_iw_ix_i$，不能自动表示“城市=北京且行业=教育”这一组合。若显式加入 $x_{\text{北京}}\times x_{\text{教育}}$，LR 就能给该组合独立权重。因此“LR 是线性模型”是指它对已经构造好的输入线性，不代表它对原始业务变量只能表达简单关系。</p>
+<p><strong>样本下采样后的先验修正：</strong> 广告点击率很低，训练常下采样负样本。若正样本保留率为 $r_1$、负样本保留率为 $r_0$，模型学到的是采样分布概率 $p_s$，可修正真实 Odds：</p>
+<p>$$
+\frac{p}{1-p}
+=\frac{p_s}{1-p_s}\frac{r_0}{r_1}.
+$$</p>
+<p>等价地，在 logit 上加 $\log(r_0/r_1)$。若不修正，AUC 可能不变，但 pCTR 会严重偏高。</p>
+<p><strong>优点：</strong> 训练和推理快；适合超高维稀疏输入；权重可分析；在线更新方便；概率通常比纯排序损失更容易校准，是非常重要的基线。</p>
+<p><strong>局限：</strong> 原始结构只有一阶；大量人工交叉依赖经验且组合爆炸；每个交叉拥有独立权重，低频组合无法共享统计强度；难以直接建模序列和图像文本。</p>
+<p>LR 用线性 logit 加 Sigmoid 输出 CTR，并用二元交叉熵训练。它对输入是线性的，但加入人工交叉后可表达原始变量的组合关系。广告系统常配合 FTRL 做稀疏在线学习，并在负样本下采样后修正概率先验。它稳定、可校准，但自动交叉和表示泛化能力弱，这推动了 FM 与深度模型的发展。</p>
+<h3>4.2 Factorization Machine</h3>
+<p><strong>使用阶段：</strong> Factorization Machine，因子分解机。它在 LR 的一阶项上加入可泛化的二阶特征交互，可用于 CTR 排序或作为 DeepFM 等模型的浅层分支。</p>
+<p><strong>为什么不用独立交叉权重：</strong> 若有百万稀疏特征，直接为每对特征学习 $w_{ij}$ 需要约万亿参数，而且大多数特征对从未共同出现。FM 假设交叉权重矩阵是低秩的，用两个 $k$ 维向量内积近似 $w_{ij}$。</p>
+<p>$$
+\hat y=w_0+\sum_iw_ix_i+\sum_{i&lt;j}\langle\mathbf v_i,\mathbf v_j\rangle x_ix_j.
+$$</p>
+<p>$w_0$ 是全局偏置，$w_i$ 是一阶权重，$\mathbf v_i\in\mathbb R^k$ 是第 $i$ 个特征的潜在向量，$\langle\mathbf v_i,\mathbf v_j\rangle$ 是二者内积。若两个特征没有直接共现，只要它们分别与其他相似特征共享过训练信号，向量仍可能学出合理交叉值。</p>
+<p><strong>计算为何是 $O(nk)$：</strong> 直接枚举二阶项需要 $O(n^2k)$。利用“和的平方减平方的和”可改写为：</p>
+<p>$$
+\sum_{i&lt;j}\langle\mathbf v_i,\mathbf v_j\rangle x_ix_j
+=\frac12\sum_{f=1}^{k}\left[\left(\sum_i v_{if}x_i\right)^2-\sum_i(v_{if}x_i)^2\right].
+$$</p>
+<p>$f$ 是潜在向量的第 $f$ 维。实际 CTR 样本中只有少量非零特征，复杂度还可按非零数计算，非常适合稀疏输入。</p>
+<p><strong>一个直观例子：</strong> 对“男性、北京、游戏广告”三个非零特征，FM 会同时计算“男性×北京”“男性×游戏”“北京×游戏”。与 LR 人工给每个组合独立权重不同，三个交叉通过各自 Embedding 的内积产生。</p>
+<p><strong>输出与损失：</strong> $\hat y$ 是 logit 时，可再接 Sigmoid 并用 BCE 训练；做评分预测时也可直接使用平方损失。Embedding、一阶权重和偏置通过同一个目标端到端更新。</p>
+<p><strong>优点：</strong> 自动学习全部二阶交叉；对极稀疏组合具有参数共享和泛化能力；复杂度与非零特征数近似线性；是很多后续模型理解低阶交互的基础。</p>
+<p><strong>局限：</strong> 只显式建模二阶；同一个特征无论与哪个特征域交互都使用同一向量；所有特征对默认同一种内积形式，无法根据样本动态决定哪些交互更重要；序列被压成静态特征后会丢失顺序。</p>
+<p><strong>与 LR 的关系：</strong> 把所有 $\mathbf v_i$ 设为 0，FM 就退化为 LR。FM 的关键不是“用了 Embedding”，而是用低秩向量内积替代海量独立二阶参数。</p>
+<p>FM 在 LR 上增加全部二阶交叉，用特征潜在向量内积表示每个交叉权重。低秩共享让从未直接共现的稀疏特征也能泛化，且通过代数改写把计算降到 $O(nk)$。它解决了人工交叉和参数爆炸，但显式表达仍停留在二阶，且所有特征域共享同一种交互方式。</p>
+<h3>4.3 FFM / FwFM</h3>
+<p>FFM 是 Field-aware Factorization Machine，域感知因子分解机；FwFM 是 Field-weighted Factorization Machine，域加权因子分解机。</p>
+<p><strong>FFM 解决的问题：</strong> FM 中“用户年龄=20”只有一个向量，但它与“广告行业”交互和与“设备类型”交互的语义不同。FFM 让同一特征面对不同 Field，特征域，时使用不同向量：</p>
+<p>$$
+\left\langle\mathbf v_{i,\operatorname{field}(j)},
+\mathbf v_{j,\operatorname{field}(i)}\right\rangle x_ix_j.
+$$</p>
+<p>$\mathbf v_{i,\operatorname{field}(j)}$ 表示特征 $i$ 专门用于和 $j$ 所在域交互的向量。例如“北京”与“广告行业”交互使用一套参数，与“星期几”交互使用另一套参数。</p>
+<p><strong>FFM 的代价：</strong> 若有 $F$ 个域，同一特征最多需要 $F-1$ 个向量，参数量约为 FM 的 $F$ 倍；二阶计算也难以使用 FM 的统一 $O(nk)$ 化简。它在 CTR 竞赛和中等规模数据上常很强，但在超大 ID 系统中内存与在线延迟明显。</p>
+<p><strong>FwFM 如何折中：</strong> FwFM 仍为每个特征保留一个 Embedding，但为每对特征域学习标量权重 $r_{f_i,f_j}$：</p>
+<p>$$
+y_{\mathrm{FwFM}}
+=\sum_{i&lt;j}r_{f_i,f_j}
+\langle\mathbf v_i,\mathbf v_j\rangle x_ix_j.
+$$</p>
+<p>$r_{f_i,f_j}$ 表示某两类域整体上应有多强的交互。例如“用户年龄×广告行业”可以比“设备品牌×星期”获得更大权重。它无法像 FFM 那样为每个特征准备多套方向不同的向量，但参数和显存更可控。</p>
+<p><strong>优点：</strong> FFM 能表达域相关语义，通常比 FM 更细致；FwFM 在表达力和成本之间提供实用折中。</p>
+<p><strong>局限：</strong> 二者仍以二阶交互为主；FFM 参数巨大，FwFM 的域对标量较粗；低频域对可能过拟合；线上还要处理特征哈希和参数服务器带宽。</p>
+<p> FFM 认为同一特征面对不同特征域时语义不同，因此为“特征×对方域”学习不同向量，表达力强但参数约为 FM 的域数倍。FwFM 只保留一套特征向量，再给每个域对增加标量权重，用较低成本近似域差异。</p>
+<h3>4.4 GBDT + LR</h3>
+<p><strong>结构：</strong> GBDT 是 Gradient Boosting Decision Tree，梯度提升决策树；与 LR 组合后形成“树模型自动产生交叉特征，线性模型输出概率”的两阶段架构。</p>
+<p><strong>数据流步骤：</strong></p>
+<ol>
+<li>用用户、广告、上下文和统计特征训练多棵提升树；</li>
+<li>每个样本在每棵树中沿判断条件走到一个叶子；</li>
+<li>把“命中了哪片叶子”编码为稀疏 one-hot；</li>
+<li>拼接原始特征或其他稀疏特征，训练 LR 输出 pCTR。</li>
+</ol>
+<p>假设有 3 棵树，每棵 4 个叶子，某样本命中第 1、3、2 号叶子，则得到长度 12、只有 3 个位置为 1 的向量。一个叶子路径可能等价于“年龄小于 25 且晚间访问且广告价格低”，因此树自动完成了阈值划分和高阶条件组合。</p>
+<p><strong>GBDT 如何训练：</strong> 每一轮新树拟合当前模型损失的负梯度或残差。对于二分类，树不断修正上一轮的 logit 误差。Boosting，提升，指弱树按顺序叠加成为强模型，不是所有树完全独立。</p>
+<p><strong>为什么后面还接 LR：</strong> 叶子已经是离散组合特征，LR 可以高效组合大量叶子并输出较易校准的概率；也便于将其他业务特征一起加入。传统方案中 GBDT 与 LR 往往分阶段训练，LR 的梯度不会反向改变树结构。</p>
+<p><strong>优点：</strong> 对连续变量的非线性阈值、缺失值和统计特征很强；特征缩放要求低；叶子路径有一定可解释性；工程成熟。</p>
+<p><strong>局限：</strong> 两阶段表示不是端到端联合优化；新数据到来时重训树和叶子编码较麻烦；对百万级 ID Embedding、文本图像和长序列不自然；叶子分布变化会使后级 LR 特征漂移。</p>
+<p>GBDT+LR 先用提升树学习连续阈值和条件组合，再把每棵树命中的叶子 one-hot 交给 LR 输出概率。GBDT 负责自动交叉，LR 负责稀疏组合和校准。它在统计特征上很稳，但分阶段训练、ID 泛化和序列建模能力不如端到端深度模型。</p>
+<h3>4.5 Wide &amp; Deep</h3>
+<p><strong>使用阶段：</strong> Wide &amp; Deep，宽度与深度联合模型，主要用于排序。Wide 侧负责 Memorization，记忆已观察到的有效规则；Deep 侧负责 Generalization，泛化到未直接见过但表示相似的组合。</p>
+<p><strong>Wide 部分：</strong> 线性模型接原始稀疏特征和人工 Cross-product Transformation，交叉乘积特征。例如：</p>
+<p>$$
+\phi_k(\mathbf x)=\prod_{i=1}^{d}x_i^{c_{ki}},
+\qquad c_{ki}\in{0,1}.
+$$</p>
+<p>$c_{ki}=1$ 表示第 $k$ 个交叉是否包含特征 $i$。若“用户已安装某应用”和“候选应用属于同类”这一组合历史上转化很好，Wide 可直接记住较大的正权重。</p>
+<p><strong>Deep 部分：</strong> 类别特征先查 Embedding，将各 Field 向量与连续特征拼接，再经多层 MLP。不同 ID 可通过邻近 Embedding 共享统计强度，从而给未出现过的组合合理分数。</p>
+<p>$$
+\operatorname{logit}=\mathbf w_{\mathrm{wide}}^{\mathsf T}\mathbf x_{\mathrm{wide}}
++\mathbf w_{\mathrm{deep}}^{\mathsf T}\mathbf h_{\mathrm{deep}}+b.
+$$</p>
+<p>$\mathbf h_{\mathrm{deep}}$ 是 MLP 最后一层表示。两侧 logit 相加后接 Sigmoid，并由同一个 BCE 联合训练；不是先训练 Wide 再训练 Deep。</p>
+<p><strong>为什么两侧都需要：</strong> 纯 Wide 依赖频繁共现，无法为低频或新组合泛化；纯 Deep 可能 Over-generalize，过度泛化，例如因为两个应用向量相近而推荐一个不合业务规则的替代品。Wide 像精确规则，Deep 像平滑相似性。</p>
+<p><strong>输入输出与训练：</strong> Wide 与 Deep 可使用相同原始样本，但特征处理不同。输出是点击、安装或购买概率；训练常用 BCE，并可配合 FTRL 更新 Wide、AdaGrad 或 Adam 更新 Deep。</p>
+<p><strong>优点：</strong> 同时保留稀疏规则记忆和向量泛化；结构清楚；宽侧易加入业务交叉；联合训练使两部分围绕同一目标分工。</p>
+<p><strong>局限：</strong> Wide 侧仍依赖人工设计交叉，容易遗漏并产生组合爆炸；Deep 侧通过 MLP 隐式学习交互，样本效率和可解释性有限；两套特征工程会增加维护成本。</p>
+<p><strong>与 DeepFM/DCN 的关系：</strong> DeepFM 用 FM 自动产生二阶交互，减少 Wide 人工交叉；DCN 用 Cross Network 递归产生有界高阶交互。它们都保留“显式交互 + 深层隐式交互”的思想。</p>
+<p>Wide&amp;Deep 将记忆与泛化放在一个联合目标中：Wide 用线性模型和人工交叉记住高置信组合，Deep 用 Embedding 与 MLP 泛化到未见组合。它的关键是两种归纳偏置互补，不只是把两个网络拼在一起。局限是 Wide 仍需人工交叉，因此后续 DeepFM 和 DCN 重点解决自动交互。</p>
+<h3>4.6 PNN</h3>
+<p>Product-based Neural Network，基于乘积的神经网络。它发现仅把各 Field Embedding 拼接给 MLP，乘法式组合不一定容易学，因此在输入层和 MLP 之间增加 Product Layer，乘积层。</p>
+<p><strong>结构步骤：</strong></p>
+<ol>
+<li>每个非零 Field 得到向量 $\mathbf e_i$；</li>
+<li>Linear Signal，线性信号，保留各 Field 的原始向量信息；</li>
+<li>Product Signal，乘积信号，显式计算字段对；</li>
+<li>将线性信号和乘积信号拼接，送入 DNN 预测 CTR。</li>
+</ol>
+<p><strong>IPNN，内积 PNN：</strong> 对字段 $i,j$ 计算标量：</p>
+<p>$$
+p_{ij}^{\mathrm{inner}}=\langle\mathbf e_i,\mathbf e_j\rangle.
+$$</p>
+<p>它参数和计算较省，但将 $d$ 维交互压成一个数，细节损失较大。</p>
+<p><strong>OPNN，外积 PNN：</strong> 计算矩阵：</p>
+<p>$$
+\mathbf P_{ij}^{\mathrm{outer}}=\mathbf e_i\mathbf e_j^{\mathsf T}.
+$$</p>
+<p>外积保留“第 a 维与第 b 维如何组合”，表达更丰富，但每个字段对产生 $d\times d$ 矩阵，通常需要求和、低秩化或核技巧降低成本。</p>
+<p><strong>为什么乘积层有效：</strong> MLP 的线性层加激活可以逼近乘法，但要从稀疏数据中自己发现这种关系。Product Layer 把“两个特征共同出现”作为明确输入，提供更适合 CTR 的归纳偏置。</p>
+<p><strong>优点：</strong> 减少人工交叉；显式向 DNN 提供字段对乘法信号；IPNN/OPNN 提供不同表达力与成本选择。</p>
+<p><strong>局限：</strong> 字段对数量为 $O(F^2)$；OPNN 内存和计算更大；乘积层主要显式表示二阶，高阶仍由 MLP 隐式学习；所有字段对都算可能引入噪声。</p>
+<p><strong>与 DeepFM 的关系：</strong> PNN 把各对乘积作为 DNN 输入，DeepFM 则让 FM 分支直接输出二阶分数并与 DNN 分支相加。PNN 的交互更深地参与后续非线性，DeepFM 的结构更简洁。</p>
+<p>PNN 在 Embedding 和 MLP 之间加入乘积层，IPNN 用字段向量内积，OPNN 用外积，直接向深网提供乘法式二阶关系。它比纯拼接 MLP 更有交互归纳偏置，但字段对是平方复杂度，外积版本尤其昂贵。</p>
+<h3>4.7 NFM</h3>
+<p> Neural Factorization Machine，神经因子分解机。它把 FM 的二阶交互保留为向量，再交给 MLP 学习非线性组合。</p>
+<p><strong>Bi-Interaction Pooling，双交互池化：</strong> “Bi” 表示两两交互，“Pooling”表示把数量众多的特征对聚成一个固定长度向量：</p>
+<p>$$
+\mathbf z=\sum_{i&lt;j}(\mathbf v_ix_i)\odot(\mathbf v_jx_j)
+=\frac12\left[\left(\sum_i\mathbf v_ix_i\right)^2-\sum_i(\mathbf v_ix_i)^2\right].
+$$</p>
+<p>$\odot$ 是逐元素乘法；公式中的平方也是逐元素平方。$\mathbf z$ 的维度仍是 Embedding 维度 $k$，不会随 Field 数平方增长。与 FM 最终把交互向量所有维度求和成标量不同，NFM 保留每一潜在维度上的交互强度。</p>
+<p><strong>完整结构：</strong> 稀疏输入先查 Embedding，经过双交互池化得到 $\mathbf z$，可接 BatchNorm、Dropout，再送入 MLP，最后输出：</p>
+<p>$$
+\hat y=w_0+\sum_iw_ix_i
++\mathbf h^{\mathsf T}\operatorname{MLP}(\mathbf z).
+$$</p>
+<p><strong>为什么可学高阶：</strong> $\mathbf z$ 已包含所有二阶乘积，后续 MLP 对这些二阶信号做非线性组合，能够隐式形成更高阶模式。例如某隐藏单元可同时响应“年龄×行业”和“时段×设备”的组合。</p>
+<p><strong>优点：</strong> 计算仍近似 $O(nk)$；比 FM 的标量二阶和更有表达力；无需显式枚举所有字段对；参数量通常比 PNN 外积小。</p>
+<p><strong>局限：</strong> 所有二阶交互先求和，无法知道某个信号具体来自哪一对 Field，存在信息混叠；高阶交互仍由 MLP 隐式获得；池化过早可能让重要与噪声交互相互抵消。</p>
+<p><strong>与 FM、DeepFM 比较：</strong> FM 对二阶交互直接线性求和；NFM 将聚合后的二阶向量送入深网；DeepFM 的深网输入是原始 Field Embedding 拼接，同时另有 FM 分支。NFM 更强调“先交互、再深层”，DeepFM 更强调“低阶与高阶并行”。</p>
+<p>NFM 对所有特征对做逐元素乘法，再用双交互池化聚成一个 Embedding 维向量，交给 MLP 学习非线性高阶模式。它保持 FM 的线性计算复杂度并增强表达力，但所有字段对过早求和会丢失交互来源。</p>
+<h3>4.8 DeepFM</h3>
+<p>Deep Factorization Machine，深度因子分解机，是 CTR 精排的经典基线。它用 FM 分支学习一阶和显式二阶交互，用 DNN 分支学习隐式高阶交互。</p>
+<p><strong>数据流步骤：</strong></p>
+<ol>
+<li>每个类别 Field 查共享 Embedding，连续特征可直接输入或先做变换；</li>
+<li>FM 分支计算一阶项和所有二阶内积；</li>
+<li>DNN 分支把各 Field Embedding 按固定顺序拼接，经过多层 MLP；</li>
+<li>两个分支的 logit 相加，接 Sigmoid 输出概率。</li>
+</ol>
+<p>$$
+\operatorname{logit}=y_{\mathrm{FM}}+y_{\mathrm{DNN}}.
+$$</p>
+<p>$y_{\mathrm{FM}}$ 包括线性一阶项和二阶向量内积；$y_{\mathrm{DNN}}$ 是 MLP 的标量输出。两侧由同一个 BCE 端到端训练。</p>
+<p><strong>共享 Embedding 的意义：</strong> Wide&amp;Deep 中 Wide 的人工交叉与 Deep 的 Embedding 可以是两套表示；DeepFM 让 FM 和 DNN 使用同一套向量。低阶交互为稀疏特征提供直接梯度，高阶分支又让向量服务复杂组合，参数更少、训练更紧凑。</p>
+<p><strong>为什么不需要人工 Wide Cross：</strong> FM 自动为任意非零特征对产生二阶分数，因此无需枚举“城市×行业”等 Wide 特征。不过它只保证二阶，DNN 是否学到有效三阶以上关系仍取决于数据、宽度和优化。</p>
+<p><strong>优点：</strong> 同时建模低阶与高阶；自动二阶交互；共享 Embedding 降低参数；结构简单、实现成熟，常作为判断新模型是否真正有效的强基线。</p>
+<p><strong>局限：</strong> FM 默认所有 Field Pair 使用相同内积且没有动态重要性；显式部分只有二阶；DNN 的高阶交互是隐式的；拼接输入维度随 Field 数增加；共享 Embedding 也可能让低阶和高阶分支产生梯度冲突。</p>
+<p><strong>与 Wide&amp;Deep 比较：</strong> Wide&amp;Deep 的显式记忆可精确承载业务人工规则，DeepFM 的 FM 则自动泛化二阶。若业务中少数手工规则非常关键，可以在 DeepFM 外仍保留线性规则分支。</p>
+<p><strong>与 DCN 比较：</strong> DeepFM 的高阶主要依赖 MLP，DCN 用 Cross Layer 显式地产生有限阶交叉。DeepFM 更简单，DCN 更强调可控高阶结构。</p>
+<p>DeepFM 由共享 Embedding 的 FM 和 DNN 两个分支组成，FM 自动学习一阶与显式二阶，DNN 从字段向量拼接中隐式学习高阶，两个 logit 相加训练。它相对 Wide&amp;Deep 减少了人工交叉，是强 CTR 基线；局限是显式部分只有二阶，且所有字段对默认同一种内积。</p>
+<h3>4.9 DCN</h3>
+<p>DCN 是 Deep &amp; Cross Network，深度与交叉网络。它用 Cross Network 显式构造有界阶数特征交互，同时保留 Deep Network 学习隐式关系，可并联或串联用于 CTR 排序。</p>
+<p><strong>输入：</strong> 将所有 Field Embedding 与连续特征拼成 $\mathbf x_0\in\mathbb R^d$。Cross Network 的第 $l$ 层为：</p>
+<p>$$
+\mathbf x_{l+1}=\mathbf x_0(\mathbf x_l^{\mathsf T}\mathbf w_l)+\mathbf b_l+\mathbf x_l.
+$$</p>
+<p>$\mathbf x_l$ 是当前层表示，$\mathbf w_l,\mathbf b_l\in\mathbb R^d$ 是参数。$\mathbf x_l^{\mathsf T}\mathbf w_l$ 先得到一个标量，再与原始输入 $\mathbf x_0$ 相乘；最后加残差 $\mathbf x_l$，保留此前所有阶数的信息。</p>
+<p><strong>为什么每层增加一阶：</strong> 第一层含 $\mathbf x_0(\mathbf x_0^{\mathsf T}\mathbf w_0)$，它是输入两两乘积，因此最高二阶；第二层再次乘 $\mathbf x_0$，最高三阶。堆叠 $L$ 层后，最高是 $L+1$ 阶，同时残差保留低阶项。这里“阶”指原始输入变量相乘的次数。</p>
+<p><strong>参数为何少：</strong> 每层只有两个长度为 $d$ 的向量，参数量 $O(d)$，$L$ 层为 $O(dL)$，没有显式枚举 $d^2$ 个特征对。代价是所有交叉通过同一个标量 $\mathbf x_l^{\mathsf T}\mathbf w_l$ 调制，属于非常受限的低秩形式。</p>
+<p><strong>与 Deep 分支的组合：</strong></p>
+<ul>
+<li>Parallel，并联：Cross 和 MLP 都读 $\mathbf x_0$，最后拼接输出；</li>
+<li>Stacked，串联：先经过 Cross 再送 MLP，或反过来；</li>
+<li>并联让两种表示相对独立，串联让 MLP 继续加工显式交叉，实际应通过效果与延迟验证。</li>
+</ul>
+<p><strong>优点：</strong> 无需人工枚举交叉；交叉最高阶数由层数控制；参数和计算高效；显式分支与 MLP 互补。</p>
+<p><strong>局限：</strong> 原版 Cross Layer 的矩阵等效秩很低，不同输出维度共享同一个缩放信号，表达能力有限；把所有 Field 拼成 bit-wise，逐维，向量后，字段语义不如 CIN 清楚；高阶不一定等于有用，层数过深可能引入噪声。</p>
+<p>DCN 的 Cross Layer 用原始输入 $\mathbf x_0$ 反复乘当前表示，每加一层最高交互阶数增加一阶，残差保留低阶信息。它以 $O(dL)$ 参数自动产生有界高阶交互，但原版每层只生成一个标量去缩放 $\mathbf x_0$，表达受限，因此 DCN-V2 将其升级为矩阵交叉。</p>
+<h3>4.10 DCN-V2</h3>
+<p>DCN-V2 是 Deep &amp; Cross Network Version 2，第二代深度交叉网络。它针对原版 DCN 的 Cross Layer 表达能力不足，引入完整矩阵变换和低秩混合专家。</p>
+<p><strong>核心 Cross Layer：</strong></p>
+<p>$$
+\mathbf x_{l+1}=\mathbf x_0\odot(\mathbf W_l\mathbf x_l+\mathbf b_l)+\mathbf x_l.
+$$</p>
+<p>$\odot$ 是逐元素乘法，$\mathbf W_l\in\mathbb R^{d\times d}$。先用矩阵让当前所有维度充分混合，再由每个 $\mathbf x_0$ 维度逐项调制，所以不同输出维可以形成不同交叉模式，不再共享同一个标量。</p>
+<p><strong>成本问题：</strong> 完整矩阵每层需要 $d^2$ 参数，输入维度大时成本很高。DCN-V2 使用 Low-rank Factorization，低秩分解：</p>
+<p>$$
+\mathbf W=\mathbf U\mathbf V^{\mathsf T},
+\qquad
+\mathbf U,\mathbf V\in\mathbb R^{d\times r},\quad r\ll d.
+$$</p>
+<p>计算从 $O(d^2)$ 降为 $O(dr)$。$r$ 是秩上限，越大表达越强、成本越高。</p>
+<p><strong>CrossNet-Mix，混合交叉网络：</strong> 使用多个低秩专家表示不同交叉子空间，并由门控按样本融合：</p>
+<p>$$
+\mathbf x_{l+1}
+=\mathbf x_l+\sum_{e=1}^{E}g_e(\mathbf x_l)
+\left[\mathbf x_0\odot
+\mathbf U_e,\phi!\left(\mathbf V_e^{\mathsf T}\mathbf x_l\right)\right].
+$$</p>
+<p>$E$ 是专家数，$g_e$ 是经过 Softmax 的门控权重，$\phi$ 是非线性激活。不同样本可选择不同专家，例如价格敏感用户与品牌敏感用户走不同交叉子空间。</p>
+<p><strong>Stacked 与 Parallel：</strong> DCN-V2 系统比较了串联和并联结构。并联将 Cross 输出与 DNN 输出拼接；串联让 Cross 结果继续进入 DNN。没有一条结构对所有数据都绝对最好，要结合参数量与特征分布验证。</p>
+<p><strong>优点：</strong> 比原 DCN 的向量参数表达更强；显式构造有界高阶；低秩和混合专家使精度与成本可调；适合大规模排序中的复杂特征交叉。</p>
+<p><strong>局限与工程点：</strong> 完整矩阵昂贵；低秩 $r$、专家数 $E$、层数和并串联方式需要联合调节；门控可能只偏向少数专家；所有输入拼接后交叉，仍需注意不同 Field 尺度和连续特征归一化。</p>
+<p><strong>DeepFM vs DCN-V2：</strong> DeepFM 的显式部分固定为二阶 FM，高阶交给 MLP 隐式学习；DCN-V2 通过堆叠矩阵 Cross Layer 显式生成有界高阶。DeepFM 更轻更稳，DCN-V2 在交叉关系复杂、数据量足够时通常更有表达力，但成本和超参更多。</p>
+<p>DCN-V2 将原版 DCN 的标量交叉升级为矩阵交叉，让不同输出维学习不同组合；再用低秩分解把 $O(d^2)$ 降到 $O(dr)$，并可通过多个低秩专家和门控按样本选择交叉子空间。它比 DCN 和 DeepFM 的显式分支更强，但需要控制矩阵、专家与路由成本。</p>
+<h3>4.11 xDeepFM</h3>
+<p>xDeepFM 可理解为 eXtreme Deep Factorization Machine，强调显式向量级高阶交互。整体由 Linear、CIN 和 DNN 三部分组成：</p>
+<ul>
+<li>Linear，线性分支，学习一阶记忆；</li>
+<li>CIN，Compressed Interaction Network，压缩交互网络，学习显式高阶；</li>
+<li>DNN，深度分支，学习隐式高阶。</li>
+</ul>
+<p><strong>CIN 的输入：</strong> 假设有 $F$ 个 Field，每个 Embedding 维度为 $D$，输入矩阵 $\mathbf X^0\in\mathbb R^{F\times D}$。CIN 第 $k$ 层的第 $h$ 个特征图在每个 Embedding 维 $d$ 上计算：</p>
+<p>$$
+X^k_{h,d}
+=\sum_{i=1}^{H_{k-1}}\sum_{j=1}^{F}
+W^{k,h}<em>{ij}X^{k-1}</em>{i,d}X^0_{j,d}.
+$$</p>
+<p>$H_{k-1}$ 是上一层特征图数，$W^{k,h}_{ij}$ 控制“上一层第 $i$ 个组合”与“原始第 $j$ 个 Field”如何继续交互。参数在 Embedding 维 $d$ 上共享，因此模型保留向量维结构，又不会为每一维单独学习巨大矩阵。</p>
+<p><strong>为什么叫 Compressed，压缩：</strong> 上一层与原始 Field 做外积会产生 $H_{k-1}\times F$ 个组合，CIN 用 $H_k$ 组权重把这些组合压成有限个新特征图，控制组合爆炸。</p>
+<p><strong>交互阶数：</strong> 第一层由两个原始 Field 相乘，表示二阶；第二层将上一层二阶组合再乘原始 Field，产生三阶；多层输出池化后拼接，使模型同时保留多个阶数。</p>
+<p><strong>Vector-wise 与 Bit-wise：</strong> Vector-wise，向量级交互，指一个 Field Embedding 的各维作为整体按相同字段组合传播；Bit-wise，逐维交互，指把所有维度拼成普通向量后混合。CIN 更能保留“哪些字段在交互”，DCN 更偏拼接向量层面的递归交叉。</p>
+<p><strong>优点：</strong> 明确产生多阶 Field 级交互；同时保留线性、显式高阶和隐式高阶；相比仅用 MLP，交互来源更结构化。</p>
+<p><strong>局限：</strong> 层宽、层数和 Split-Half 等实现策略影响很大；计算通常高于 DeepFM；CIN 张量实现复杂；显式更高阶并不保证业务有效，字段多时可能引入大量噪声。</p>
+<p>xDeepFM 用 Linear+CIN+DNN 同时学习一阶、显式高阶和隐式高阶。CIN 每层将上一层特征图与原始 Field 向量逐维相乘，再用共享参数压缩，因此第 $k$ 层可产生更高一阶的向量级交互。它比 DCN 更保留字段结构，但实现和计算更复杂。</p>
+<h3>4.12 AFM</h3>
+<p>Attentional Factorization Machine，注意力因子分解机。它针对 FM 将所有二阶交互直接求和的问题，学习“当前样本中哪些特征对更重要”。</p>
+<p><strong>交互表示：</strong> 对每个非零特征对产生向量：</p>
+<p>$$
+\mathbf p_{ij}=(\mathbf v_ix_i)\odot(\mathbf v_jx_j).
+$$</p>
+<p>然后用一个小型注意力网络产生未归一化重要性，再做 Softmax：</p>
+<p>$$
+\begin{aligned}
+e_{ij}&amp;=\mathbf h^{\mathsf T}
+\operatorname{ReLU}(\mathbf W\mathbf p_{ij}+\mathbf b),\
+a_{ij}&amp;=\frac{\exp(e_{ij})}{\sum_{m&lt;n}\exp(e_{mn})},\
+\mathbf z&amp;=\sum_{i&lt;j}a_{ij}\mathbf p_{ij}.
+\end{aligned}
+$$</p>
+<p>$\mathbf W,\mathbf b,\mathbf h$ 是注意力网络参数，$a_{ij}$ 是该样本中特征对 $(i,j)$ 的归一化权重，$\mathbf z$ 再经投影输出预测。</p>
+<p><strong>与 FwFM 的区别：</strong> FwFM 为每个 Field Pair 学固定标量，同一域对在所有样本上权重相同；AFM 的权重由当前特征对向量动态计算，不同用户和广告可不同。</p>
+<p><strong>Dropout 的作用：</strong> 特征对数量多时，模型可能过分依赖少数高频交互。对交互层或注意力输出使用 Dropout，随机丢弃，有助于减少共适应和过拟合。</p>
+<p><strong>优点：</strong> 动态选择重要二阶交互；比 FM 等权求和更有表达力；注意力权重可用于排查模型关注了哪些交互。</p>
+<p><strong>局限：</strong> 主要仍是二阶；需要显式构造字段对，成本约 $O(F^2)$；Softmax 使交互相互竞争，可能压低多个同时重要的关系；注意力权重表示模型内部贡献，不等同于因果解释或真实业务重要性。</p>
+<p>AFM 先计算每个特征对的逐元素乘积，再用小型注意力网络按样本分配权重，解决 FM 对所有二阶交互直接求和的问题。它能动态突出重要字段对，但仍以二阶为主，且注意力权重只能解释模型行为，不能直接当成因果结论。</p>
+<h3>4.13 AutoInt</h3>
+<p>AutoInt 是 Automatic Feature Interaction，自动特征交互网络。它把每个 Field Embedding 视作一个 token，用多头自注意力动态学习字段关系。</p>
+<p><strong>输入与位置：</strong> CTR 字段通常没有自然时间顺序，因此 token 位置代表 Field 身份，而不是行为先后。每个 Field 的 Embedding 可先线性投影到相同维度，再进入多层 Interacting Layer，交互层。</p>
+<p><strong>单头注意力：</strong></p>
+<p>$$
+\begin{aligned}
+\mathbf Q&amp;=\mathbf E\mathbf W_Q,\quad
+\mathbf K=\mathbf E\mathbf W_K,\quad
+\mathbf V=\mathbf E\mathbf W_V,\
+\operatorname{Attention}(\mathbf E)&amp;=
+\operatorname{softmax}!\left(\frac{\mathbf Q\mathbf K^{\mathsf T}}{\sqrt d}\right)\mathbf V.
+\end{aligned}
+$$</p>
+<p>$\mathbf E\in\mathbb R^{F\times d}$ 是字段矩阵，$\mathbf Q,\mathbf K,\mathbf V$ 分别是查询、键和值。$QK^{\mathsf T}$ 产生 $F\times F$ 权重矩阵：第 $i$ 个 Field 可根据当前样本选择关注第 $j$ 个 Field。</p>
+<p><strong>Multi-Head，多头：</strong> 将表示投影到多个子空间，每个头可学习不同关系，例如一个头关注“用户×广告”，另一个头关注“上下文×广告”。各头输出拼接后再投影。</p>
+<p><strong>Residual，残差连接：</strong> 交互层输出加上原输入，再经激活或归一化。残差避免多层传播后丢失原始字段信息，也让梯度更容易回传。</p>
+<p><strong>为什么可形成高阶交互：</strong> 第一层让一个 Field 融合其他 Field 的信息；第二层再对已经包含二阶关系的表示做交互，因而逐层传播更高阶依赖。它不像 DCN 那样给出严格多项式阶数，但交互路径是显式的。</p>
+<p><strong>输出：</strong> 多层字段表示可展平或池化，接线性层/MLP 输出 CTR；也可与原始 DNN 分支联合。训练通常使用 BCE。</p>
+<p><strong>优点：</strong> 样本级动态选择 Field 关系；多头可表达多种交互子空间；并行计算友好；字段间关系矩阵便于分析。</p>
+<p><strong>局限与成本：</strong> 自注意力复杂度约 $O(F^2d)$，字段数很大时昂贵；CTR 字段少时优势可能不明显；高阶交互是层间传播意义上的，不能简单等同于精确多项式阶数；注意力可能被高频 Field 支配。</p>
+<p><strong>与 AFM/DCN 比较：</strong> AFM 对预先产生的二阶特征对加权；AutoInt 让每个字段同时作为查询、键和值，多层传播。DCN 的权重对样本输入产生乘法交叉，AutoInt 则通过 Softmax 动态路由字段信息。</p>
+<p>AutoInt 把每个特征域当成 token，通过多头自注意力产生样本相关的字段交互矩阵，残差保留原始信息，堆叠后传播高阶关系。相比 FM/DCN 的固定交叉形式，它能动态选择关系，但复杂度为 $O(F^2d)$，且注意力权重不等于严格因果解释。</p>
+<h3>4.14 FiBiNET</h3>
+<p>Feature Importance and Bilinear feature Interaction Network，特征重要性与双线性交互网络。它分别回答两个问题：当前样本中哪些 Field 重要，以及两个 Field 应如何细粒度交互。</p>
+<p><strong>第一部分：SENET 特征重标定。</strong> SENET 原意为 Squeeze-and-Excitation Network，压缩与激励网络。</p>
+<ol>
+<li>Squeeze，压缩：把每个 Field Embedding 的 $d$ 个维度聚合成一个统计量，例如均值；</li>
+<li>Excitation，激励：将 $F$ 个统计量送入两层小网络，输出每个 Field 的权重；</li>
+<li>Re-weight，重标定：用权重乘回对应 Field Embedding。</li>
+</ol>
+<p>可写为：</p>
+<p>$$
+\begin{aligned}
+z_i&amp;=\frac{1}{d}\sum_{t=1}^{d}e_{i,t},\
+\mathbf a&amp;=\sigma!\left(\mathbf W_2
+\operatorname{ReLU}(\mathbf W_1\mathbf z)\right),\
+\tilde{\mathbf e}_i&amp;=a_i\mathbf e_i.
+\end{aligned}
+$$</p>
+<p>$z_i$ 是第 $i$ 个 Field 的压缩统计，$a_i$ 是样本相关重要性，$\tilde{\mathbf e}_i$ 是重标定后的向量。</p>
+<p><strong>第二部分：Bilinear Interaction，双线性交互。</strong> 普通 FM 用 $\mathbf e_i\odot\mathbf e_j$ 或内积，FiBiNET 加入可学习矩阵：</p>
+<p>$$
+\mathbf p_{ij}=(\mathbf W_{ij}\mathbf e_i)\odot\mathbf e_j.
+$$</p>
+<p>双线性意味着一个向量先经线性矩阵变换，再与另一个向量相乘，因此能学习“第 a 维如何影响第 b 维”的细粒度关系。</p>
+<p><strong>三种参数共享方式：</strong></p>
+<ul>
+<li>Field-All：所有字段对共享一个矩阵，参数最少；</li>
+<li>Field-Each：由其中一个 Field 决定矩阵，参数中等；</li>
+<li>Field-Interaction：每个字段对独立矩阵，表达最强但参数最多。</li>
+</ul>
+<p>原始与 SENET 重标定后的 Embedding 都可进入双线性交互，交互向量拼接后送入 DNN。</p>
+<p><strong>优点：</strong> 同时建模字段重要性和细粒度字段对关系；权重随样本变化；双线性比简单内积更有表达力。</p>
+<p><strong>局限与工程点：</strong> 字段对数量为 $O(F^2)$；Field-Interaction 参数可能很大；SENET 权重可能被高频特征支配或趋同；压缩成单个均值可能丢失 Field 内部信息；通常需要正则、Dropout 和合理共享矩阵。</p>
+<p><strong>与 AFM/AutoInt 比较：</strong> AFM 在交互之后给特征对加权；FiBiNET 先给 Field 重标定，再用双线性矩阵定义交互形式；AutoInt 则通过字段间自注意力传递信息。三者都在解决“并非所有字段关系相同”，但作用位置不同。</p>
+<p>FiBiNET 先用 SENET 对每个样本的字段向量做压缩、激励和重标定，判断哪些 Field 重要；再用可学习矩阵的双线性交互建模字段对。它比 FM 的统一内积更细致，但字段对和矩阵参数会带来明显计算与过拟合风险。</p>
+<h2>5. 用户兴趣与序列模型</h2>
+<h3>5.1 GRU4Rec / SASRec / BERT4Rec</h3>
+<p>这三类模型都预测序列中的下一物品，但它们利用上下文的方式不同：GRU4Rec 递归压缩过去，SASRec 用因果自注意力并行读取过去，BERT4Rec 用双向上下文恢复被遮盖物品。</p>
+<h4>5.1.1 GRU4Rec</h4>
+<p><strong>场景：</strong> GRU for Recommendation，基于门控循环单元的推荐。它最初面向 Session-based Recommendation，会话推荐：用户可能未登录，没有稳定 user_id，只能根据当前会话内的点击序列预测下一物品。</p>
+<p><strong>GRU 为什么比普通 RNN 稳定：</strong> GRU 使用 Reset Gate，重置门，和 Update Gate，更新门，控制旧状态保留多少、新信息写入多少：</p>
+<p>$$
+\begin{aligned}
+\mathbf r_t&amp;=\sigma(\mathbf W_r\mathbf x_t+\mathbf U_r\mathbf h_{t-1}),\
+\mathbf z_t&amp;=\sigma(\mathbf W_z\mathbf x_t+\mathbf U_z\mathbf h_{t-1}),\
+\tilde{\mathbf h}<em>t&amp;=\tanh(\mathbf W_h\mathbf x_t+
+\mathbf U_h(\mathbf r_t\odot\mathbf h</em>{t-1})),\
+\mathbf h_t&amp;=(1-\mathbf z_t)\odot\mathbf h_{t-1}
++\mathbf z_t\odot\tilde{\mathbf h}_t.
+\end{aligned}
+$$</p>
+<p>$\mathbf x_t$ 是第 $t$ 个物品向量，$\mathbf h_t$ 是读到该物品后的会话状态；$\mathbf r_t$ 决定计算新候选状态时忘掉多少过去，$\mathbf z_t$ 决定最终写入多少新状态。</p>
+<p><strong>训练方式：</strong> 每个时刻用 $\mathbf h_t$ 给下一真实物品打高分。除了采样 Softmax，原论文还常用 BPR 或 TOP1 排序损失。TOP1 同时惩罚负样本分数高于正样本，以及负样本自身分数过大。Session-parallel Mini-batch，会话并行批处理，把多个会话的当前步放在同一批次，某个会话结束后立刻换入新会话，提高 GPU 利用率。</p>
+<p><strong>优点：</strong> 严格按时间顺序更新；状态可随新行为增量计算；比普通 RNN 更能保留长期信息；适合匿名会话。</p>
+<p><strong>局限：</strong> 时间步必须串行，长序列训练慢；所有过去被压入一个状态，可能遗忘细节；仅做 next-item 时没有自然融合复杂目标广告和非序列 Field。</p>
+<h4>5.1.2 SASRec</h4>
+<p>Self-Attentive Sequential Recommendation，自注意力序列推荐。它用 Transformer 风格的因果自注意力替代循环网络。</p>
+<p><strong>输入构造：</strong> 对物品 Embedding 加上 Position Embedding，位置嵌入，表示行为在序列中的先后。序列长度不足时使用 Padding，填充，并在注意力中 Mask，屏蔽。训练时每个位置预测下一个物品。</p>
+<p><strong>Causal Mask，因果遮罩：</strong> 第 $t$ 个位置只能看 $1,\ldots,t$，不能看到未来真实行为。注意力矩阵上三角位置设为负无穷，Softmax 后权重为 0：</p>
+<p>$$
+\mathbf H^{l+1}
+=\operatorname{FFN}!\left(
+\operatorname{Attention}_{\mathrm{causal}}(\mathbf H^l)
+\right).
+$$</p>
+<p>实际层中还包含多头注意力、残差、LayerNorm 和逐位置前馈网络。</p>
+<p><strong>预测目标：</strong> 用位置 $t$ 的输出 $\mathbf h_t$ 与正物品 $\mathbf v_{t+1}$ 打分。可对一个或多个负物品使用 BCE：</p>
+<p>$$
+\mathcal L_t
+=-\log\sigma(\mathbf h_t^{\mathsf T}\mathbf v_{t+1})
+-\sum_{j\in\mathcal N_t}
+\log\sigma(-\mathbf h_t^{\mathsf T}\mathbf v_j).
+$$</p>
+<p><strong>相比 GRU4Rec：</strong> 训练时所有位置可并行；任意两个历史位置之间的路径短，更容易学习远距离依赖；注意力能按当前状态选择历史。代价是标准注意力对长度 $L$ 的时间和显存近似 $O(L^2)$。</p>
+<p><strong>局限：</strong> 仅靠位置编码不一定充分表达真实时间间隔；负采样影响很大；序列过长时平方成本明显；next-item 目标与广告转化概率仍有差距。</p>
+<h4>5.1.3 BERT4Rec</h4>
+<p>Bidirectional Encoder Representations from Transformers for Recommendation，基于双向 Transformer 表示的序列推荐。</p>
+<p><strong>Masked Item Prediction，掩码物品预测：</strong> 训练时随机把部分历史物品替换为特殊的 <strong>[MASK]</strong> 标记，让模型根据左右两侧行为恢复原物品。这也称 Cloze Task，完形填空任务：</p>
+<p>$$
+\mathcal L_{\mathrm{MIP}}
+=-\sum_{t\in\mathcal M}
+\log p(i_t\mid \mathbf i_{\setminus\mathcal M}).
+$$</p>
+<p>$\mathcal M$ 是被遮盖位置集合，$\mathbf i_{\setminus\mathcal M}$ 是其余可见序列。由于不是预测中间位置的下一项，注意力无需因果遮罩，每个可见位置可同时查看左右上下文。</p>
+<p><strong>推理方式：</strong> 在线推荐时，在历史末尾追加 <strong>[MASK]</strong>，用该位置输出预测下一物品。此时没有未来上下文，因此训练中的中间掩码任务与在线末尾预测存在一定差异。</p>
+<p><strong>相比 SASRec：</strong> BERT4Rec 的双向上下文能更充分学习序列内部表示，训练中一个样本可产生多个遮盖位置监督；SASRec 的因果目标与在线“只看过去预测未来”更一致。</p>
+<p><strong>局限：</strong> 随机掩码比例、替换策略和候选 Softmax 成本需要调节；<strong>[MASK]</strong> 在真实行为序列中不存在，形成预训练与推理差异；标准自注意力仍是 $O(L^2)$。</p>
+<p><strong>三者总结：</strong> GRU4Rec 递归、可增量但串行；SASRec 因果自注意力、并行且训练推理一致；BERT4Rec 双向掩码建模、表示学习强但有掩码与末尾预测差异。工业广告排序还需加入目标广告、上下文字段、多任务概率和延迟约束，因此三者通常作为序列编码器而非完整广告系统。</p>
+<h3>5.2 DIN</h3>
+<p>Deep Interest Network，深度兴趣网络。DIN 是目标广告感知的 CTR 精排模型，解决传统 Embedding+MLP 把所有历史平均为固定用户向量、无法表达多兴趣的问题。</p>
+<p><strong>核心例子：</strong> 同一个用户既浏览过篮球鞋，也浏览过手机。面对“运动服”广告，应重点使用篮球鞋行为；面对“手机壳”广告，应重点使用手机行为。DIN 不先生成唯一用户向量，而是让每个候选广告查询历史。</p>
+<p><strong>输入与数据流：</strong></p>
+<ol>
+<li>用户画像、目标广告和上下文 Field 做 Embedding；</li>
+<li>历史行为物品形成向量 $\mathbf e_1,\ldots,\mathbf e_L$；</li>
+<li>目标广告向量 $\mathbf q$ 与每个历史向量进入 Local Activation Unit，局部激活单元；</li>
+<li>得到候选相关历史权重 $a_i$ 并加权求和；</li>
+<li>将兴趣向量与其他特征拼接，送入 MLP 输出 pCTR。</li>
+</ol>
+<p>$$
+\begin{aligned}
+a_i&amp;=\operatorname{MLP}([\mathbf e_i,\mathbf q,\mathbf e_i-\mathbf q,
+\mathbf e_i\odot\mathbf q]),\
+\mathbf u(\mathbf q)&amp;=\sum_i a_i\mathbf e_i.
+\end{aligned}
+$$</p>
+<p>$[\cdot]$ 表示拼接，$\mathbf e_i-\mathbf q$ 提供逐维差异，$\mathbf e_i\odot\mathbf q$ 提供逐维乘积。与只用点积相比，小型 MLP 能学习更复杂的候选-行为匹配函数。</p>
+<p><strong>为何常不使用 Softmax：</strong> 标准注意力将所有权重归一化为和为 1，历史中有 1 次相关行为和 20 次相关行为可能得到相近总向量尺度。DIN 的局部激活权重可不归一化，使相关行为数量也反映兴趣强度。不过序列长度变化会改变向量尺度，需要 BatchNorm、长度特征或其他稳定化处理。</p>
+<p><strong>Dice 激活：</strong> DIN 提出的 Data-adaptive Activation Function，数据自适应激活，根据当前输入分布计算门控概率：</p>
+<p>$$
+\operatorname{Dice}(x)
+=p(x)x+[1-p(x)]\alpha x,
+\qquad
+p(x)=\sigma!\left(\frac{x-\mu}{\sqrt{\sigma_x^2+\epsilon}}\right).
+$$</p>
+<p>$\mu,\sigma_x^2$ 是输入统计，$\alpha$ 是可学习负区间斜率。Dice 的切换位置随数据分布变化，而不是像 PReLU 固定以 0 为界。</p>
+<p><strong>Mini-batch Aware Regularization，批次感知正则：</strong> 超大稀疏 Embedding 表不可能每步对所有参数计算 L2。只对当前 batch 中出现的特征向量施加正则，并按出现概率做修正，可近似全量稀疏正则、减少过拟合。</p>
+<p><strong>复杂度：</strong> 对每个候选都要计算 $L$ 次激活并聚合，约为 $O(BL)$，$B$ 是候选数。候选越多、历史越长，用户侧结果越难缓存，这也是 SIM/TWIN 处理长序列的出发点。</p>
+<p><strong>优点：</strong> 直接表达候选相关多兴趣；结构简单、有效、易与现有 CTR 特征融合；激活网络比固定点积更灵活。</p>
+<p><strong>局限：</strong> 历史行为之间没有显式时序演化；对每候选重算目标注意力；长序列成本高；未归一化权重的尺度与行为数量相关；注意力可能关注相关但非因果的行为。</p>
+<p><strong>与普通 Attention 的区别：</strong> DIN 的 Local Activation Unit 用拼接、差和逐元素积经 MLP 算匹配，且权重可不做 Softmax；标准缩放点积注意力主要使用 $QK^{\mathsf T}$ 并归一化。两者都属于“按查询加权值”，但具体打分函数和归一化不同。</p>
+<p>DIN 针对固定用户向量无法表达多兴趣，让目标广告逐条查询历史行为。局部激活单元使用候选、行为、差和乘积计算权重，再加权得到候选相关兴趣。权重常不做 Softmax 以保留兴趣强度，模型还使用 Dice 适应推荐特征分布。它适合精排，但每个候选都要扫历史，且没有显式建模兴趣随时间演化。</p>
+<h3>5.3 DIEN</h3>
+<p>Deep Interest Evolution Network，深度兴趣演化网络。用户问题中的 DEIN 通常是对 DIEN 的误写。DIEN 在 DIN 的目标相关选择之外，进一步区分“外显行为”和“隐含兴趣”，并建模兴趣如何随时间演化。</p>
+<p><strong>第一层：Interest Extractor，兴趣提取器。</strong> 第一个 GRU 按时间读取行为 Embedding：</p>
+<p>$$
+\mathbf h_t=\operatorname{GRU}(\mathbf e_t,\mathbf h_{t-1}).
+$$</p>
+<p>$\mathbf e_t$ 是观察到的行为，$\mathbf h_t$ 是模型推断的隐兴趣状态。这样“点击一次”不直接等于“形成兴趣”，而是结合此前行为得到状态。</p>
+<p><strong>辅助损失为何必要：</strong> 最终 CTR 标签对长序列中每一步监督太弱，第一个 GRU 容易只做无意义编码。DIEN 让 $\mathbf h_t$ 预测下一真实行为 $\mathbf e_{t+1}$，同时区分采样负行为 $\hat{\mathbf e}_{t+1}$：</p>
+<p>$$
+\begin{aligned}
+\mathcal L_{\mathrm{aux}}
+=-\sum_{t=1}^{L-1}
+&amp;\left[
+\log\sigma!\left(f(\mathbf h_t,\mathbf e_{t+1})\right)\right.\
+&amp;\left.+\log\left(1-\sigma!\left(
+f(\mathbf h_t,\hat{\mathbf e}_{t+1})\right)\right)
+\right].
+\end{aligned}
+$$</p>
+<p>$f$ 是小型二分类网络。这个 Auxiliary Loss，中间辅助损失，为每个时间步提供局部监督，让状态确实包含可预测下一行为的兴趣信息。总损失通常为 $\mathcal L=\mathcal L_{\mathrm{CTR}}+\alpha\mathcal L_{\mathrm{aux}}$。</p>
+<p><strong>目标相关注意力：</strong> 用候选广告 $\mathbf q$ 与每个兴趣状态 $\mathbf h_t$ 计算标量 $a_t$。第二层 Interest Evolution，兴趣演化网络，不只是加权求和，而是控制这些状态如何写入最终兴趣。</p>
+<p><strong>AIGRU，Attention-based Input GRU：</strong> 先将输入缩放为 $a_t\mathbf h_t$，再送入普通 GRU。它让不相关状态输入变小，但 GRU 的偏置和隐藏状态仍可能让不相关步骤改变输出。</p>
+<p><strong>AGRU，Attention-based GRU：</strong> 直接用标量注意力 $a_t$ 替换 GRU 原本逐维 Update Gate，更新门：</p>
+<p>$$
+\mathbf h&#39;<em>t=(1-a_t)\mathbf h&#39;</em>{t-1}+a_t\tilde{\mathbf h}&#39;_t.
+$$</p>
+<p>它把目标相关性直接用于状态更新，但丢失了原更新门“不同维度更新程度不同”的能力。</p>
+<p><strong>AUGRU，GRU with Attentional Update Gate：</strong> 保留 GRU 的向量更新门 $\mathbf z_t$，再由注意力缩放：</p>
+<p>$$
+\tilde{\mathbf z}_t=a_t\mathbf z_t,
+\qquad
+\mathbf h&#39;_t=(1-\tilde{\mathbf z}<em>t)\odot\mathbf h&#39;</em>{t-1}
++\tilde{\mathbf z}_t\odot\tilde{\mathbf h}&#39;_t.
+$$</p>
+<p>这样既保留逐维门控，又让与目标无关的时间步难以改写状态，通常是三者中最完整的设计。</p>
+<p><strong>完整数据流：</strong> 行为 Embedding $\rightarrow$ 兴趣提取 GRU $\rightarrow$ 下一行为辅助监督 $\rightarrow$ 候选相关注意力 $\rightarrow$ AUGRU 兴趣演化 $\rightarrow$ 与画像、广告、上下文拼接 $\rightarrow$ MLP 输出 CTR。</p>
+<p><strong>优点：</strong> 明确区分行为与兴趣；通过辅助损失增强长序列中间监督；同时建模兴趣时间演化与目标相关性；AUGRU 将注意力融入状态更新而非最后才池化。</p>
+<p><strong>局限与工程成本：</strong> 两层 GRU 都按时间串行，训练与在线长序列延迟较高；辅助负样本质量影响兴趣状态；模块多、损失权重和梯度更难调；目标相关演化仍需对每个候选计算。</p>
+<p><strong>DIN vs DIEN：</strong> DIN 直接对原始行为做候选相关加权，没有显式兴趣状态；DIEN 先由 GRU 提取兴趣，再用辅助损失监督，并用 AUGRU 建模候选相关的兴趣演化。DIN 更轻，DIEN 更强调时序与状态变化。</p>
+<p>DIEN 认为行为不等于兴趣。第一层 GRU 将行为抽成隐兴趣，并用“当前状态预测下一正行为、区分负行为”的辅助损失提供逐步监督；第二层用候选相关注意力控制兴趣演化。AUGRU 用注意力缩放 GRU 的向量更新门，兼顾目标相关性和逐维记忆。它比 DIN 更完整，但双层循环结构和负采样带来更高成本。</p>
+<h3>5.4 DSIN</h3>
+<p>Deep Session Interest Network，深度会话兴趣网络。它认为用户历史不是一条均匀序列：同一会话内行为通常围绕相近意图，不同会话则可能代表不同兴趣阶段。</p>
+<p><strong>Session，会话，如何定义：</strong> 按相邻行为时间间隔切分，例如超过 30 分钟视为新会话；也可结合自然访问边界。阈值是业务归纳偏置，并非模型自动发现。完整流程如下：</p>
+<pre><code class="language-text">按时间间隔切 session
+-&gt; session 内 self-attention + bias encoding
+-&gt; session 间 Bi-LSTM 建模演化
+-&gt; target-aware attention 聚合 session interests
+</code></pre>
+<p><strong>分层数据流解释：</strong></p>
+<ol>
+<li>将历史按时间间隔分成 $S$ 个会话；</li>
+<li>每个会话内部使用 Multi-head Self-Attention，提取行为组合；</li>
+<li>加入 Bias Encoding，偏置编码，表达会话顺序、行为位置和时间信息；</li>
+<li>对会话内输出做池化，得到会话兴趣 $\mathbf s_1,\ldots,\mathbf s_S$；</li>
+<li>用 Bi-LSTM，双向长短期记忆网络，建模历史会话之间的演化；</li>
+<li>目标广告分别查询原始会话兴趣与演化后的会话兴趣；</li>
+<li>将两路结果与其他特征拼接，预测 CTR。</li>
+</ol>
+<p><strong>为什么会话内用自注意力：</strong> 同一会话可能包含“搜索相机、浏览机身、比较镜头”，行为之间相互解释，自注意力比简单均值更能学习组合意图，而且会话通常较短，平方复杂度可接受。</p>
+<p><strong>Bias Encoding 是什么：</strong> 标准 Transformer 只看到内容与统一位置。DSIN 加入与会话编号、会话内位置或时间间隔相关的可学习偏置，使模型区分“刚发生的会话”和“很久以前的会话”，以及同一会话中的先后。</p>
+<p><strong>为什么同时保留两路兴趣：</strong> Bi-LSTM 输出强调会话随时间的变化，原始会话向量保留每段兴趣本身。目标注意力分别聚合两路，可同时利用“哪个会话与广告相关”和“兴趣如何演变到现在”。</p>
+<p><strong>双向是否数据泄漏：</strong> 只要输入全部发生在目标展示之前，Bi-LSTM 在历史会话内部双向读取并不看到目标后的未来，因此不必然泄漏。但在线若对正在进行中的会话增量更新，双向编码无法像单向 RNN 那样只追加一步，需要重算或缓存策略。</p>
+<p><strong>优点：</strong> 显式利用会话层级；会话内组合与会话间演化分工清楚；比把所有行为平铺成一条序列更符合多阶段兴趣。</p>
+<p><strong>局限：</strong> 会话切分阈值人工且跨业务不稳定；层级模块较多；Bi-LSTM 和目标注意力增加延迟；错误切分会把一个意图拆开或把多个意图混在一起。</p>
+<p><strong>与 DIEN 比较：</strong> DIEN 在行为粒度用 GRU 连续演化；DSIN 先形成会话兴趣，再在会话粒度演化。DSIN 更有层级归纳偏置，DIEN 对边界没有人工假设。</p>
+<p>DSIN 先按时间间隔把历史切成会话，利用会话内自注意力提取局部意图，再用 Bi-LSTM 建模会话兴趣演化，最后由目标广告注意两路会话表示。它比 DIEN 更明确地利用层级结构，但效果依赖会话切分，在线增量与计算也更复杂。</p>
+<h3>5.5 BST</h3>
+<p>Behavior Sequence Transformer，行为序列 Transformer。它将 Transformer 引入工业 CTR 排序，让行为之间以及行为与目标候选之间通过自注意力直接交互。</p>
+<p><strong>输入构造：</strong> 每个历史物品 token 可由物品 ID、品类等 Embedding 相加或拼接投影，并加入 Positional Encoding，位置编码，以及 Time Interval Encoding，时间间隔编码。目标物品也作为 token 放入序列，使其可读取相关历史。</p>
+<p><strong>Transformer 层：</strong> 多头自注意力先计算所有 token 两两关系，再通过 FFN 做逐位置非线性变换；每个子层使用残差与 LayerNorm。若所有输入均是目标展示前历史，历史 token 间可双向交互；目标 token 则从整段历史聚合候选相关表示。</p>
+<p><strong>数据流：</strong></p>
+<ol>
+<li>历史与目标广告形成 token 序列；</li>
+<li>添加位置和时间信息；</li>
+<li>经过若干 Transformer Encoder；</li>
+<li>取目标位置输出或展平序列输出；</li>
+<li>与用户画像、广告静态特征、上下文拼接；</li>
+<li>MLP 输出点击或转化概率。</li>
+</ol>
+<p><strong>相比 DIN：</strong> DIN 的历史行为彼此独立地与目标计算激活权重，主要是“一跳目标到行为”；BST 先让行为之间建立关系，也可让目标在多头空间读取组合行为。例如“搜索相机后浏览镜头”可作为整体影响目标。</p>
+<p><strong>训练：</strong> 作为 CTR 模型通常直接用曝光样本 BCE，而不是只做下一物品预测。可对 Transformer 参数与其他稀疏 Embedding 端到端训练。</p>
+<p><strong>优点：</strong> 能学习长距离行为依赖；训练位置并行；目标与历史、历史与历史统一在注意力中交互；易扩展多头与时间编码。</p>
+<p><strong>局限与工程成本：</strong> 标准注意力为 $O(L^2d)$；目标 token 导致每个候选的序列结果不同，用户表示难完全缓存；短序列或数据不足时复杂 Transformer 未必优于 DIN；Padding 会浪费计算，需要 Ragged/Jagged，变长张量，优化。</p>
+<p>BST 把历史行为和目标物品一起作为 Transformer token，加入位置与时间编码，通过自注意力同时建模行为-行为和目标-行为关系，再与静态特征进入 MLP 预测 CTR。它比 DIN 能表达行为组合和长距离依赖，但标准注意力平方复杂度、且目标相关计算不易缓存。</p>
+<h3>5.6 SIM</h3>
+<p>Search-based User Interest Model，基于搜索的用户兴趣模型。SIM 面向可达数万条的终身行为序列，核心不是让一个重模型直接扫描全部历史，而是“先从历史中搜索，再精确建模”。</p>
+<p><strong>为什么 DIN/BST 难直接扩长：</strong> DIN 对每个候选线性扫描历史，成本约 $O(BL)$；BST 标准注意力近似 $O(L^2)$。当 $L$ 从百级变成数万级时，显存、特征读取和在线延迟都不可接受，而直接截断最近行为会丢失很久以前但高度相关的兴趣。</p>
+<p><strong>第一阶段 GSU：</strong> General Search Unit，通用搜索单元，从完整历史中快速筛出与目标候选相关的 Top-K 行为，$K\ll L$。</p>
+<ul>
+<li>Hard Search，硬搜索：使用类别、标签等离散规则过滤。例如目标是相机广告，只保留历史中相机或摄影相关品类。它很快且可倒排索引，但规则粗、跨品类兴趣难召回。</li>
+<li>Soft Search，软搜索：用目标向量与历史行为向量的内积等学习分数，选择 Top-K。它能发现语义相似，但要预计算行为表示或采用近似检索。</li>
+</ul>
+<p>可抽象为：</p>
+<p>$$
+\mathcal I_K(q)=
+\operatorname{TopK}<em>{i\in{1,\ldots,L}}
+s</em>{\mathrm{GSU}}(\mathbf q,\mathbf e_i).
+$$</p>
+<p>$\mathcal I_K(q)$ 是为候选 $q$ 找出的历史下标，$s_{\mathrm{GSU}}$ 是便宜的检索分数。</p>
+<p><strong>第二阶段 ESU：</strong> Exact Search Unit，精确搜索单元，对筛出的短序列使用 DIN 风格目标注意力或更复杂序列网络：</p>
+<p>$$
+\mathbf u(q)
+=\sum_{i\in\mathcal I_K(q)}
+a_{\mathrm{ESU}}(\mathbf q,\mathbf e_i)\mathbf e_i.
+$$</p>
+<p>因为只处理 $K$ 条行为，ESU 可以使用更丰富的交叉特征、时间信息和 MLP，而不必扫描全部 $L$ 条。</p>
+<p><strong>训练方式：</strong> GSU 和 ESU 可联合训练或分阶段训练。要特别关注 GSU 的 Top-K 操作不可导问题：可用软权重训练、辅助相关性损失，或先训练检索分数再做硬选择。离线评估不仅看最终 AUC，还应看相关历史的 GSU Recall@K。</p>
+<p><strong>优点：</strong> 保留远期相关行为而非只取最近窗口；将超长序列转为可承受的短序列精排；硬搜索便于工程部署，软搜索可学习语义。</p>
+<p><strong>局限：</strong> 级联召回不可逆，GSU 漏掉的行为 ESU 无法恢复；两阶段相关性度量可能不一致；Top-K、索引和历史更新增加系统复杂度；候选相关检索仍会削弱用户侧缓存。</p>
+<p><strong>与 DIN 的关系：</strong> DIN 是“对全部可见历史做精确目标注意力”，SIM 在它前面加历史检索层，使目标注意力可扩展到终身序列。</p>
+<p>SIM 用 GSU+ESU 处理数万级历史。GSU 先通过品类硬搜索或向量软搜索为当前候选选出 Top-K 相关行为，ESU 再对这段短序列做 DIN 式精确目标建模。它保留了很久以前的相关兴趣，但有级联误差，尤其是 GSU 与 ESU 度量不一致时，第一阶段漏掉的信息无法恢复。</p>
+<h3>5.7 TWIN</h3>
+<p>TWIN 强调 Two-stage Interest Network，两阶段兴趣网络的“双胞胎”一致性。它直接解决 SIM 中 GSU 和 ESU 使用不同相关性函数造成的级联误差：两个阶段共享或保持同构的 Target-Behavior Relevance，目标-行为相关度。</p>
+<p><strong>不一致为何有害：</strong> 若 GSU 只按类目找历史，而 ESU 认为品牌、价格和用户交叉更重要，第一阶段可能删掉第二阶段最想看的行为。TWIN 让 GSU 的轻量分数尽量等价于 ESU 注意力中用于筛选的分数，使训练和服务目标对齐。</p>
+<p><strong>相关性分解：</strong> 对目标 $q$ 与历史行为 $i$，注意力分数可抽象为：</p>
+<p>$$
+s(q,i)
+=\frac{
+(\mathbf W_Q\mathbf e_q)^{\mathsf T}
+(\mathbf W_K\mathbf e_i)}
+{\sqrt d}
++b_{\mathrm{cross}}(u,q,i).
+$$</p>
+<p>第一项由目标和行为的固有特征投影产生；第二项 $b_{\mathrm{cross}}$ 是用户、目标、行为交叉特征压缩成的一维 Bias，偏置，例如用户对该类目的历史频次或时间差。</p>
+<p><strong>怎样扩展到 $10^4$ 至 $10^5$ 历史：</strong></p>
+<ol>
+<li>历史物品固有特征的 Key/Value 投影只依赖物品，可离线预计算；</li>
+<li>用户历史到达时可缓存这些投影，不必为每个候选重新经过大网络；</li>
+<li>用户-目标-行为交叉特征不展开成高维向量，只压成注意力分数中的标量偏置；</li>
+<li>GSU 用同构轻量相关性从全历史选 Top-K；</li>
+<li>ESU 对 Top-K 使用同一度量和更完整 Value 聚合，生成最终兴趣。</li>
+</ol>
+<p><strong>为什么不是完全免费：</strong> 对每个候选仍需计算与大量历史 Key 的匹配分数；缓存减少了物品侧投影，但没有消除 $B\times L$ 的分数读取与 Top-K。工程上依赖高效批量矩阵运算、变长序列布局和缓存新鲜度管理。</p>
+<p><strong>训练与评估：</strong> 可用最终 CTR/CVR 损失联合更新相关性，也可增加 GSU 与 ESU 分数或 Top-K 的一致性约束。除 AUC 外，应监控 GSU Top-K 对 ESU 高权重行为的覆盖率、缓存命中率、延迟分位数和显存带宽。</p>
+<p><strong>优点：</strong> 显著减少 SIM 的上下游度量错位；预计算物品侧投影降低候选相关长序列计算；保留两阶段架构的可扩展性。</p>
+<p><strong>局限：</strong> 仍有 Top-K 级联信息损失；用户-物品动态交叉被压为标量 Bias，表达受限；缓存带来一致性和更新问题；多候选下的内存访问可能成为瓶颈。</p>
+<p><strong>一句话比较：</strong> SIM 的关键是“先搜索、再精算”；TWIN 的关键是在这个范式中让两阶段使用一致的目标-行为度量，并把可缓存计算和候选动态计算拆开。</p>
+<p>TWIN 解决 SIM 的 GSU/ESU 度量不一致。它把物品固有特征的 Key/Value 投影预计算缓存，将动态用户-物品交叉压成注意力分数偏置，让粗筛和精算共享同构相关性。这样减少第一阶段错删，但 Top-K 级联损失和多候选扫描成本仍存在。</p>
+<h3>5.8 LONGER</h3>
+<p>LONGER 是面向工业推荐的端到端长序列模型。它希望避免 SIM/TWIN 先筛选再建模带来的不可逆信息损失，在一个可部署主干中同时保留局部行为细节和长期全局兴趣。</p>
+<p><strong>问题拆解：</strong> 标准 Transformer 对 $L$ 个 token 做全局两两注意力，成本近似 $O(L^2d)$；简单池化或只留最近行为成本低，却丢失远期信息；两阶段搜索可扩展，但第一阶段错删无法恢复。LONGER 的思路是在进入昂贵全局交互前结构化压缩，同时让压缩过程参与端到端训练。</p>
+<p><strong>Global Token，全局标记：</strong> 在长序列中加入少量可学习或由上下文生成的全局 token。普通行为 token 主要负责局部细节，全局 token 跨片段读取信息，形成长期摘要。与一次性 Mean Pooling 不同，全局 token 可在多层中反复更新。</p>
+<p><strong>Token Merge，标记合并：</strong> 将相邻、相似或同一局部块中的多个行为压缩为更少 token，减少后续序列长度。合并不能只是固定求平均，否则会抹掉顺序和强行为，因此使用轻量 InnerTransformer，块内 Transformer，在局部范围先建模，再产生压缩表示。</p>
+<p><strong>Hybrid Attention，混合注意力：</strong> 不让所有行为 token 无差别全局互看，而是组合局部注意力与全局通道。局部窗口精细建模邻近行为，全局 token 或特定连接负责跨块传递。若块大小为 $w$、全局 token 数为 $g$，成本可由纯 $O(L^2)$ 降向 $O(Lwd+Lgd)$ 量级，具体取决于实现。</p>
+<p><strong>端到端数据流：</strong></p>
+<ol>
+<li>将长期行为与时间、行为类型等信息编码为 token；</li>
+<li>局部 InnerTransformer 提取块内关系；</li>
+<li>Token Merge 压缩冗余行为；</li>
+<li>Global Token 与压缩序列通过混合注意力交互；</li>
+<li>多层继续提取长期兴趣；</li>
+<li>输出与候选及非序列特征融合，预测排序目标。</li>
+</ol>
+<p><strong>工程优化为何属于模型的一部分：</strong></p>
+<ul>
+<li>Mixed Precision，混合精度：用 FP16/BF16 保存激活和执行矩阵运算，关键累积保留高精度；</li>
+<li>Activation Recomputation，激活重计算：前向不保存所有中间结果，反向时重新计算，以额外算力换显存；</li>
+<li>KV Cache，键值缓存：复用历史 token 的 Key/Value，只为新增行为或候选计算变化部分；</li>
+<li>Synchronous Training-Serving，训服同步：尽量让训练时压缩和注意力路径与在线一致，减少离线线上偏差。</li>
+</ul>
+<p><strong>优点：</strong> 单一主干联合优化压缩与兴趣建模；减少两阶段度量错位；局部细节与全局长期兴趣兼顾；论文同时考虑训练和服务可行性。</p>
+<p><strong>局限与成本：</strong> Token Merge 仍可能丢失信息，只是变为可学习压缩；局部块大小、合并率和全局 token 数需要调节；GPU Kernel、缓存和变长序列实现复杂；相对 SIM/TWIN 的轻量检索，端到端主干计算更重。</p>
+<p><strong>SIM/TWIN vs LONGER：</strong> SIM/TWIN 先为每个候选搜索少量历史，成本低但有级联误差；LONGER 让完整长序列先经过可学习压缩和混合注意力，追求统一优化。前者更像检索系统，后者更像长上下文模型。</p>
+<p>LONGER 用全局 token、局部 InnerTransformer、Token Merge 和混合注意力，把标准 Transformer 的全局平方计算改为局部精细加全局摘要，并让压缩参与端到端训练。它减少 SIM/TWIN 的级联信息损失，但对混合精度、激活重计算、KV 缓存和高效 Kernel 的工程要求更高。</p>
+<h3>5.9 HSTU</h3>
+<p>HSTU 是 Hierarchical Sequential Transduction Unit，层次化序列转导单元，是 Meta Generative Recommenders，生成式推荐器，中的核心模块。它不是把标准 Transformer 原样搬到 CTR，而是针对高基数、非平稳、流式推荐数据重新设计注意力、特征交互和系统执行。</p>
+<p><strong>Sequential Transduction，序列转导，是什么意思：</strong> 给定用户此前的物品与动作序列，模型逐位置预测后续动作或物品，把推荐视为“历史序列到未来序列”的条件生成。这样一个主干可通过大量行为位置获得监督，而不只在每次曝光末端预测一个标签。</p>
+<p><strong>推荐 token 如何构造：</strong> 一个时间步不仅有 item_id，还可能包含动作类型、评分、时间和上下文。HSTU 将异构特征映射到统一时序表示，并使用相对位置、相对时间等 Bias 描述事件间距离。Pointwise，逐位置，表示同一个变换独立作用于每个 token。</p>
+<p><strong>一层 HSTU 的四个步骤：</strong></p>
+<ol>
+<li>Pointwise Projection，逐位置投影：对归一化输入生成 Query、Key、Value 和门控向量；</li>
+<li>Spatial Aggregation，空间聚合：每个位置根据内容相关性和时间位置偏置，从历史位置聚合 Value；</li>
+<li>Pointwise Transformation，逐位置变换：用门控向量调制聚合结果，再投影回模型维度；</li>
+<li>Residual Connection，残差连接：与层输入相加，稳定深层训练。</li>
+</ol>
+<p>简化表达可写为：</p>
+<p>$$
+\begin{aligned}
+\mathbf Q,\mathbf K,\mathbf V,\mathbf U
+&amp;=\operatorname{Proj}(\operatorname{Norm}(\mathbf X)),\
+\mathbf A
+&amp;=\phi!\left(\mathbf Q\mathbf K^{\mathsf T}
++\mathbf B_{\mathrm{pos,time}}\right)\odot\mathbf M_{\mathrm{causal}},\
+\mathbf Z&amp;=\mathbf A\mathbf V,\
+\mathbf X&#39;&amp;=\mathbf X+\mathbf W_o(\mathbf U\odot\mathbf Z).
+\end{aligned}
+$$</p>
+<p>$\mathbf B_{\mathrm{pos,time}}$ 是相对位置与时间偏置，$\mathbf M_{\mathrm{causal}}$ 屏蔽未来位置，$\phi$ 可使用 SiLU 等逐点激活，$\mathbf U$ 对聚合结果做门控。该式用于理解结构，不应把不同工程版本的细节硬说成完全相同。</p>
+<p><strong>为何不直接使用 Softmax Attention：</strong> Softmax 把一行权重归一化为 1，更强调“在历史中相对选择谁”，却弱化“有多少条相关行为”。推荐中，用户点击某类内容 20 次通常比只点击 1 次代表更强兴趣。HSTU 的 Pointwise Aggregated Attention，逐点聚合注意力，不强制同样的单位和，可保留相关行为数量和强度信息。</p>
+<p><strong>为什么不能概括成“删掉 Softmax”：</strong> 去掉归一化后，序列越长聚合值可能越大，模型还需依靠 SiLU 门控、归一化、相对偏置、残差和专门初始化来稳定数值。真正贡献是整套聚合单元与推荐数据、训练系统的协同设计。</p>
+<p><strong>Stochastic Length，随机长度：</strong> 训练中对历史长度或可见范围做随机化，让模型适应不同长度并利用推荐序列重复性降低有效计算。它同时类似数据增强和稀疏化，避免模型只依赖固定最近窗口。</p>
+<p><strong>Ragged/Jagged Tensor，变长张量：</strong> 用户历史长度差异很大，统一 Padding 到最长序列会浪费大量算力。HSTU 使用针对变长布局的 Attention Kernel，只存真实 token，并让 GPU Kernel 直接处理每个用户的起止偏移。</p>
+<p><strong>M-FALCON 的服务思想：</strong> 排序时同一用户要评估多个候选。历史 Key/Value 可共享缓存，只把不同候选组成 Micro-batch，微批次，复用长历史计算。这样 Target-aware，目标感知，排序不必为每个候选从头编码整段历史。</p>
+<p><strong>训练目标：</strong> 生成式主干可在每个时间位置预测下一 item/action，使用采样 Softmax、对比损失或具体行为目标。与传统单点 CTR 标签相比，序列中更多位置提供监督；应用到广告排序时仍需结合点击、转化、多任务概率和校准。</p>
+<p><strong>优点：</strong> 统一序列特征抽取与高阶交互；适应高基数、非平稳事件流；保留兴趣强度；生成式训练能利用更多位置；配套变长 Kernel 与缓存方案考虑了工业扩展。</p>
+<p><strong>局限与工程成本：</strong> 训练基础设施要求高；超长历史仍占显存和带宽；非 Softmax 聚合需要严格数值稳定设计；统一生成目标不一定天然满足广告 pCTR/pCVR 校准；Serving 依赖候选微批和缓存命中。</p>
+<p><strong>HSTU vs DIN：</strong> DIN 在传统 DLRM 中增加一次候选相关历史池化；HSTU 试图用统一序列转导主干替代多段特征提取和交互模块，并支持逐位置生成式训练。</p>
+<p><strong>HSTU vs SASRec：</strong> SASRec 是标准因果 Softmax 自注意力的下一物品模型；HSTU 针对推荐数据改造聚合、门控、相对时间、变长执行和候选微批，目标是扩到更大数据与模型规模。</p>
+<p>HSTU 是生成式推荐中的层次化序列转导单元。每层先逐位置生成 Q/K/V 和门控，再用带位置时间偏置、非 Softmax 的逐点聚合注意力读取历史，经过门控变换和残差输出。这样保留相关行为数量代表的兴趣强度，并配合随机长度、变长 Kernel、KV 缓存和候选微批扩展训练与排序。它不是简单删 Softmax，而是模型与系统联合设计。</p>
+<h3>5.10 HyFormer</h3>
+<p>HyFormer 是面向工业 Large Ranking Model，大规模排序模型，的 Hybrid Transformer，混合 Transformer。它同时处理超长行为序列与用户、目标广告、上下文等异构 Non-sequential Features，非序列特征。</p>
+<p><strong>传统解耦管线的问题：</strong> 常见做法先用 LONGER 类序列模型把历史压成固定向量，再用 RankMixer 或 MLP 与非序列特征交互。这样序列压缩时不知道下游特征真正需要什么，下游又只能读取已经压缩好的结果，二者无法逐层协同。HyFormer 让非序列查询和长序列表示反复交替更新。</p>
+<p><strong>机制一：Query Decoding，查询解码。</strong> 将候选广告、用户画像和上下文等非序列特征编码成若干 Query/Global Token，查询或全局标记。每一层查询都从长序列的 Key/Value 中读取：</p>
+<p>$$
+\mathbf Q^{l+1}
+=\mathbf Q^l+
+\operatorname{CrossAttention}
+\left(\mathbf Q^l,\mathbf K(\mathbf S^l),\mathbf V(\mathbf S^l)\right).
+$$</p>
+<p>$\mathbf Q^l$ 是第 $l$ 层非序列查询，$\mathbf S^l$ 是该层长序列表示。Decoding，解码，表示用少量查询把与当前候选和场景有关的信息从大量序列 token 中读出来，而不是将完整序列直接拼入 MLP。</p>
+<p><strong>机制二：Query Boosting，查询增强。</strong> 只做每个查询独立读序列，会缺少 Query-Query 与跨序列域交互。Query Boosting 使用高效 Token Mixing，标记混合，让不同查询、非序列 token 和不同序列摘要交换信息。它回答“来自不同域的证据如何组合”，例如短期强行为如何与用户长期画像共同影响当前广告。</p>
+<p><strong>交替堆叠：</strong> HyFormer 不是先完成全部序列编码再融合，而是多层执行“Sequence Evolution，序列演化 $\rightarrow$ Query Decoding，查询读序列 $\rightarrow$ Query Boosting，查询间融合”。下一层序列与查询在上一层结果上继续更新，形成迭代式协同。</p>
+<p><strong>多序列处理：</strong> 实际系统可能有多个匿名行为域或业务定义的序列。每个序列可拥有独立查询和编码器，保留域内模式；Boosting 阶段再让各域查询交换信息。不能在数据未说明时擅自把匿名序列解释成曝光、点击或转化。</p>
+<p><strong>输入输出与训练：</strong> 输入包含一个或多个行为序列、候选广告 token、用户与上下文字段；最终将增强后的 Query/NS token 聚合并送入预测头，输出 pCTR、pCVR 或竞赛目标。作为判别式排序模型，可直接用 BCE，也可扩展多任务 Tower。Padding Mask 必须同时作用于序列编码和 Cross-Attention，防止填充位置获得权重。</p>
+<p><strong>复杂度理解：</strong> 若查询数 $M$ 远小于序列长度 $L$，Cross-Attention 的主要成本约为 $O(MLd)$，比让全部序列与全部非序列 token 做全局平方注意力更可控。查询数增加会提高容量，也会线性增加序列读取成本。</p>
+<p><strong>优点：</strong> 长序列建模与非序列交互统一优化；少量查询按候选有选择地读取历史；多序列域既可独立演化又能交换信息；比“先压缩后拼接”保留更多层间协同。</p>
+<p><strong>局限与工程成本：</strong> 查询由候选广告引导时，每个候选结果不同，缓存复用下降；Query 数、序列层数和 Boosting 宽度都会影响显存；多序列 Padding、全空序列和跨域尺度需要严谨处理；公开竞赛复现中的具体结构不等于原论文所有工业实现。</p>
+<p><strong>HyFormer vs LONGER：</strong> LONGER 重点是高效端到端长序列编码与压缩；HyFormer 进一步把非序列查询对序列的读取、查询之间的特征交互放入同一主干，逐层交替更新。可以把 LONGER 看成长序列基础设施方向，把 HyFormer 看成长序列与排序特征统一交互方向。</p>
+<p><strong>HyFormer vs HSTU：</strong> HSTU 从生成式推荐和统一序列转导出发，重构注意力聚合、训练监督和服务缓存；HyFormer 更贴近判别式 CTR/pCVR 大模型，核心是 Query Decoding/Boosting 统一长序列与 Feature Interaction，特征交互。二者都重视长序列和系统效率，但出发点与训练范式不同。</p>
+<p>HyFormer 解决传统“长序列先压缩、非序列特征后融合”的割裂。它把候选、画像和上下文扩展成少量 Query，每层先从长序列 Key/Value 中解码相关信息，再通过 Query Boosting 做查询间和跨序列交互，交替迭代。相对 LONGER，它更强调序列与非序列排序特征的统一主干；相对 HSTU，它仍偏判别式 CTR/pCVR。复现项目中还要准确说明匿名序列、候选相关 Query、Padding Mask 和缓存代价。</p>
+<h2>6. 多任务与多目标模型</h2>
+<h3>6.1 Shared-Bottom</h3>
+<p>Shared-Bottom，共享底座，是最基础的多任务学习结构。所有任务共用底层特征抽取器，每个任务有独立 Tower，任务塔。</p>
+<p>$$
+\begin{aligned}
+\mathbf h&amp;=f_{\mathrm{shared}}(\mathbf x),\
+\hat y_t&amp;=\operatorname{tower}_t(\mathbf h).
+\end{aligned}
+$$</p>
+<p>$\mathbf x$ 是用户、广告、上下文和序列特征，$\mathbf h$ 是统一共享表示，$t$ 可代表点击、转化、停留时长等任务。分类任务接 Sigmoid+BCE，回归任务可用 MSE、Huber 或分布损失。</p>
+<p><strong>梯度如何作用：</strong> 总损失为 $\sum_t\lambda_t\mathcal L_t$，共享参数收到各任务梯度之和：</p>
+<p>$$
+\nabla_{\theta_s}\mathcal L
+=\sum_t\lambda_t\nabla_{\theta_s}\mathcal L_t.
+$$</p>
+<p>若两个任务梯度方向相近，共享训练相互帮助；若内积为负，更新一个任务会损害另一个任务，称为 Gradient Conflict，梯度冲突。</p>
+<p><strong>为什么共享可能有效：</strong> 点击样本多、转化样本少，点击任务可帮助底层 Embedding 学到用户与广告的基本关系；多个任务共同训练也像正则化，减少单一稀疏目标过拟合。</p>
+<p><strong>Negative Transfer，负迁移：</strong> 点击喜欢吸睛素材，转化更看重商品与价格，二者既相关又不完全一致。强制共享所有底层层会把任务特有信号混在一起，出现一个任务上涨、另一个下降的 Seesaw Phenomenon，跷跷板现象。</p>
+<p><strong>优点：</strong> 结构最简单；参数与推理成本低；数据共享充分；适合作为多任务基线和小模型。</p>
+<p><strong>局限：</strong> 所有任务共享同一表示，无法按样本或任务控制共享程度；任务标签率、损失尺度和收敛速度不一致时，大任务容易主导；不适合相关性弱甚至冲突的任务。</p>
+<p><strong>与 MMoE/PLE 的关系：</strong> MMoE 把一个共享底座扩为多个共享专家，让每个任务动态混合；PLE 再加入任务专属专家和分层信息路径。复杂模型必须与 Shared-Bottom 基线比较，确认收益不是单纯来自参数增多。</p>
+<p>Shared-Bottom 让所有任务共享一个底层表示，再接各自任务塔。共享参数收到所有任务梯度之和，相关任务能数据互补，尤其帮助稀疏转化目标；但梯度方向冲突会造成负迁移和跷跷板。MMoE 与 PLE 的核心改进都是让共享不再被强制为同一个表示。</p>
+<h3>6.2 ESMM</h3>
+<p>Entire Space Multi-Task Model，全空间多任务模型。它面向“曝光 $\rightarrow$ 点击 $\rightarrow$ 转化”的行为链路，主要解决直接在点击样本上训练 CVR 带来的 Sample Selection Bias，样本选择偏差，和 Data Sparsity，转化标签稀疏。</p>
+<p><strong>为什么直接训练 CVR 有偏：</strong> 训练 CVR 时通常只保留点击样本，因为未点击广告无法发生点击后转化；但线上需要给所有曝光候选预测。如果“会被点击的样本”与全体曝光分布不同，模型在点击空间学到的规律直接应用到曝光空间就发生分布偏移。</p>
+<p>定义 $I$ 为曝光，$C$ 为点击，$V$ 为点击后转化：</p>
+<p>$$
+\begin{aligned}
+p_{\mathrm{CTR}}&amp;=P(C=1\mid I=1,x),\
+p_{\mathrm{CVR}}&amp;=P(V=1\mid C=1,I=1,x),\
+p_{\mathrm{CTCVR}}&amp;=P(C=1,V=1\mid I=1,x)
+=p_{\mathrm{CTR}}p_{\mathrm{CVR}}.
+\end{aligned}
+$$</p>
+<p>最后一个等式来自概率链式法则：</p>
+<p>$$
+P(C=1,V=1\mid I=1,x)
+=P(C=1\mid I=1,x)
+\cdot P(V=1\mid C=1,I=1,x).
+$$</p>
+<p><strong>模型结构：</strong></p>
+<ol>
+<li>CTR Tower 输出 $p_{\mathrm{CTR}}$；</li>
+<li>CVR Tower 输出 $p_{\mathrm{CVR}}$；</li>
+<li>两者相乘得到 $p_{\mathrm{CTCVR}}$；</li>
+<li>CTR 用全曝光的点击标签监督；</li>
+<li>CTCVR 用全曝光的“是否既点击又转化”标签监督；</li>
+<li>两个 Tower 共享底层 Embedding，让密集点击信号帮助稀疏转化表示。</li>
+</ol>
+<p>训练损失可写为：</p>
+<p>$$
+\mathcal L
+=\mathcal L_{\mathrm{BCE}}(y_C,p_{\mathrm{CTR}})
++\lambda
+\mathcal L_{\mathrm{BCE}}(y_Cy_V,
+p_{\mathrm{CTR}}p_{\mathrm{CVR}}).
+$$</p>
+<p>$y_Cy_V$ 只有点击且转化时为 1。注意 ESMM 通常不直接在点击子集上对 CVR Tower 输出计算第三个 BCE，而是通过乘积间接监督。</p>
+<p><strong>为什么叫 Entire Space：</strong> 两个显式损失都定义在 Impression Space，全曝光空间，而不是只在 Clicked Space，点击样本空间。CVR Tower 的输入也能覆盖未点击样本，缓解训练服务特征分布不一致。</p>
+<p><strong>共享 Embedding 如何缓解稀疏：</strong> 转化样本远少于点击，单独 CVR 模型的商品、用户 Embedding 学不稳。共享后，CTR 的大量样本也更新底层表示，但 Tower 顶部仍可学习不同目标。</p>
+<p><strong>局限一：CVR 可识别性。</strong> 监督直接约束的是乘积。如果 $p_{\mathrm{CTR}}$ 与 $p_{\mathrm{CVR}}$ 的组合能拟合 CTCVR，CVR 分量未必得到唯一、完全准确的估计，尤其在 CTR 很小时。</p>
+<p><strong>局限二：梯度衰减。</strong> CTCVR 对 CVR 输出的梯度含 $p_{\mathrm{CTR}}$ 因子，低 CTR 样本给 CVR Tower 的有效梯度更弱。链式乘积也可能带来数值和校准问题。</p>
+<p><strong>局限三：共享不等于无偏。</strong> ESMM 用全空间监督缓解选择偏差，但共享参数、模型错设和未观测混杂仍可能造成估计偏差；不能回答“ESMM 已经彻底无偏”。</p>
+<p><strong>ESMM vs MMoE/PLE：</strong> ESMM 规定任务标签之间的概率链路和损失空间；MMoE/PLE 规定参数如何共享。它们是正交维度，可以用 MMoE 或 PLE 作为 ESMM 两个 Tower 的共享 Backbone，主干。</p>
+<p><strong>优点：</strong> 使用全曝光监督；充分利用密集点击标签；避免直接把仅点击样本训练的 CVR 模型生硬迁移到全曝光；结构清楚、工业应用广。</p>
+<p>ESMM 用概率链式法则把 CTCVR 写成 CTR×CVR，在全曝光空间监督 CTR 和“点击且转化”，并共享 Embedding，缓解点击子空间训练 CVR 的选择偏差和转化稀疏。CVR 没有独立标签，而是由乘积间接约束，所以仍有可识别性、低 CTR 梯度弱和校准偏差，不能说它彻底无偏。</p>
+<h3>6.3 ESM2 / ESCM2</h3>
+<h4>6.3.1 ESM2</h4>
+<p>Elaborated Entire Space Supervised Multi-task Model，细化的全空间监督多任务模型。它观察到点击到购买之间通常还有丰富动作，单独使用最终购买标签仍然太稀疏。</p>
+<p><strong>Post-click Behavior Decomposition，点击后行为分解：</strong> 将购买相关中间行为拆成互斥或互补的动作类型，例如：</p>
+<ul>
+<li>DAction，Deterministic Action，确定性动作：业务上与购买链路强绑定的动作；</li>
+<li>OAction，Other Action，其他动作：点击后可能发生、但不属于确定链路的行为。</li>
+</ul>
+<p>论文将行为图从简单的“曝光 $\rightarrow$ 点击 $\rightarrow$ 购买”扩成“曝光 $\rightarrow$ 点击 $\rightarrow$ D/O Action $\rightarrow$ 购买”，并根据条件概率规则同时预测多个子目标。</p>
+<p><strong>为什么更密集：</strong> 加购、收藏、进入详情等中间动作远多于最终购买。它们为共享表示和各链路 Tower 提供更密集监督，使模型不必只靠极少数购买样本学习点击后意图。</p>
+<p><strong>概率组合思想：</strong> 若一条转化路径包含中间动作 $A$，可将某分支概率写成：</p>
+<p>$$
+P(C,A,V\mid I,x)
+=P(C\mid I,x)
+\cdot P(A\mid C,I,x)
+\cdot P(V\mid A,C,I,x).
+$$</p>
+<p>实际 ESM2 使用行为图并行组合多个互斥子目标，最终购买概率由这些路径概率合成。面试重点是“行为图分解 + 条件概率组合 + 全空间监督”，不应把所有中间行为简单假设为一条线性链。</p>
+<p><strong>优点：</strong> 中间动作增加监督密度；更贴近真实购买路径；可利用全曝光样本；不同点击后行为帮助区分强弱意图。</p>
+<p><strong>局限：</strong> 依赖业务定义中间动作，跨场景迁移困难；动作漏报、延迟成熟和路径并行关系会造成标签噪声；概率乘积使链路更长、数值更小；如果行为图假设错误，复杂模型会引入偏差。</p>
+<h4>6.3.2 ESCM2</h4>
+<p>Entire Space Counterfactual Multi-Task Model，全空间反事实多任务模型。它指出 ESMM 家族虽然使用全空间多任务监督，仍不能保证 CVR 估计无偏。</p>
+<p><strong>两个问题：</strong></p>
+<ul>
+<li>IEB，Inherent Estimation Bias，固有估计偏差：论文理论分析指出 ESMM 的 CVR 估计可能系统性高于真实值；</li>
+<li>PIP，Potential Independence Priority，潜在独立优先：模型拟合 CTCVR 时可能主要依靠两个分支的相关性组合，而没有充分学习“点击之后导致可观察转化”的链路。</li>
+</ul>
+<p><strong>Counterfactual Risk Minimizer，反事实风险最小化：</strong> 真实 CVR 标签只在点击样本上可见。反事实方法问的是“若全体曝光都获得点击机会，转化风险如何”。ESCM2 在 ESMM 主损失之外加入反事实风险正则。</p>
+<p><strong>IPS，Inverse Propensity Scoring，逆倾向评分：</strong> 将点击概率视为样本被观察到转化标签的 Propensity，倾向概率，对点击样本损失乘以其倒数：</p>
+<p>$$
+\mathcal R_{\mathrm{IPS}}
+=\frac{1}{N}\sum_{i=1}^{N}
+\frac{c_i}{\hat p_i}
+\ell(y_i,\hat y_i^{\mathrm{CVR}}).
+$$</p>
+<p>$c_i$ 是点击指示，$\hat p_i$ 是估计 CTR。低点击概率却被点击的样本代表更多相似未点击样本，因此权重更大。实际要对 $\hat p_i$ 做下界截断或权重裁剪，否则方差会爆炸。</p>
+<p><strong>DR，Doubly Robust，双重稳健：</strong> 同时使用倾向模型和结果填补模型。直观上先为所有样本估计损失，再用点击样本的真实残差做 IPS 修正；只要倾向模型或填补模型之一较准确，估计仍有机会保持一致性，通常比纯 IPS 方差更小。</p>
+<p><strong>ESCM2 的组合：</strong> 保留 ESMM 的 CTR/CTCVR 全空间任务，再用 IPS 或 DR 风格的 CVR 反事实风险作为正则，迫使 CVR 分支直接面对点击选择机制，缓解 IEB 和 PIP。</p>
+<p><strong>局限：</strong> 倾向分数很小时 IPS 高方差；CTR 模型错误会传递到反事实权重；DR 还需要可靠填补模型；未观测混杂仍可能破坏无偏性；线上校准和延迟成熟标签仍需单独处理。</p>
+<p>ESM2 把点击到购买之间的确定性和其他动作加入行为图，用更密集的点击后监督缓解转化稀疏。ESCM2 则指出 ESMM 仍可能有固有高估和忽略点击因果链的问题，在全空间多任务损失外加入 IPS 或双重稳健的反事实风险正则。它们说明 ESMM 是重要起点，但不是“彻底无偏”的终点。</p>
+<h3>6.4 MMoE</h3>
+<p>Multi-gate Mixture-of-Experts，多门控混合专家。MMoE 用多个共享 Expert，专家，替代单一 Shared-Bottom，并为每个任务设置独立 Gate，门控，使不同任务按样本选择不同专家组合。</p>
+<p><strong>Expert 是什么：</strong> 每个专家通常是一个小 MLP，接收相同输入但拥有独立参数。模型并未预先规定“专家 1 学价格、专家 2 学内容”，这些子空间由数据和门控共同形成。</p>
+<p>$$
+\begin{aligned}
+\mathbf g_t(\mathbf x)&amp;=\operatorname{softmax}(\mathbf W_t\mathbf x),\
+\mathbf h_t&amp;=\sum_i g_{t,i}(\mathbf x)f_i(\mathbf x),\
+\hat y_t&amp;=\operatorname{tower}_t(\mathbf h_t).
+\end{aligned}
+$$</p>
+<p>$\mathbf g_t\in\mathbb R^E$ 是任务 $t$ 对 $E$ 个专家的权重，且和为 1；$f_i(\mathbf x)$ 是第 $i$ 个专家输出；$\mathbf h_t$ 是任务特定的混合表示；Tower 将其转成任务预测。</p>
+<p><strong>按任务且按样本路由：</strong> 同一个样本在 CTR Gate 中可能偏向专家 1、2，在 CVR Gate 中偏向专家 2、4；另一个用户的权重还会变化。它比“每个任务固定使用一组层”更灵活。</p>
+<p><strong>为什么多个专家能缓解负迁移：</strong> 若任务相关，可共同使用某些专家；若任务差异大，Gate 可选择不同组合。这样共享关系从“所有任务必须用同一表示”变成“任务自行决定共享哪些子空间”。</p>
+<p><strong>Gate 是 Attention 吗：</strong> 二者都常用 Softmax 加权，但 MMoE Gate 的对象是参数不同的专家网络，表示条件计算路径；标准 Attention 的对象通常是输入 token 的 Value，权重来自 Query-Key 匹配。数学形式相似，语义与归纳偏置不同。</p>
+<p><strong>Dense MMoE，稠密 MMoE：</strong> 推荐中的经典 MMoE 会计算全部专家，再做加权求和。即使某权重很小，专家计算也已经发生，因此它增加容量但不节省 FLOPs。LLM 的 Sparse MoE，稀疏混合专家，通常只执行 Top-K 专家。</p>
+<p><strong>Gate Collapse，门控塌缩：</strong> Gate 可能长期只使用少数专家，使其他专家没有梯度；也可能所有专家学得高度相似，称为 Expert Homogenization，专家同质化。可用负载均衡正则、熵正则、不同初始化或专家 Dropout 缓解。</p>
+<p><strong>优点：</strong> 任务可动态选择共享关系；比 Shared-Bottom 更适应任务相关性变化；同一专家仍能从多任务数据获益；结构容易与现有 Tower 结合。</p>
+<p><strong>局限：</strong> 专家本身仍对所有任务开放，任务专属噪声可能污染；稠密计算成本随专家数线性增加；Gate 可塌缩；任务很多时每任务 Gate 和 Tower 也会增大。</p>
+<p>MMoE 把单一共享底座改成多个共享 MLP 专家，每个任务用独立 Softmax Gate 按样本混合专家，再进入任务塔。它让共享关系动态可学习，缓解强制共享的负迁移。但经典推荐 MMoE 是稠密计算，所有专家都会执行，并且存在门控塌缩、专家同质化和任务专属信息污染。</p>
+<h3>6.5 PLE</h3>
+<p>Progressive Layered Extraction，渐进式分层抽取。PLE 在 MMoE 的共享专家之外显式增加 Task-specific Experts，任务专属专家，并通过多层 CGC 逐步分离共享知识与任务特有知识。</p>
+<p><strong>CGC 是什么：</strong> Customized Gate Control，定制门控控制。对任务 $t$，一层中有共享专家 $S_i$ 和该任务专属专家 $T_{t,j}$：</p>
+<p>$$
+\mathbf h_t^{l+1}
+=\sum_i g^{l}<em>{t,s_i}S_i^l(\mathbf h_s^l)
++\sum_j g^{l}</em>{t,t_j}T_{t,j}^l(\mathbf h_t^l).
+$$</p>
+<p>任务 Gate 只能从“共享专家 + 本任务专家”选择，不能直接读取其他任务专属专家，从结构上阻断无关任务噪声。</p>
+<p><strong>共享分支如何更新：</strong> 中间层还有 Shared Gate，共享门控，它可聚合共享专家和各任务专家，形成下一层共享输入：</p>
+<p>$$
+\mathbf h_s^{l+1}
+=\sum_i g^{l}<em>{s,s_i}S_i^l(\mathbf h_s^l)
++\sum_t\sum_j g^{l}</em>{s,t_j}T_{t,j}^l(\mathbf h_t^l).
+$$</p>
+<p>共享分支从所有任务抽取可迁移信息，再交给下一层；任务分支则保持受限读取。最后一层通常只需各任务 Gate 输出给对应 Tower。</p>
+<p><strong>为什么叫 Progressive，渐进式：</strong> 不是一层就硬切共享和私有，而是多层重复“专家变换 + 门控选择”。底层可共享通用 ID 和内容关系，高层逐渐形成点击、转化、时长等任务特有表示。</p>
+<p><strong>信息路径示例：</strong> CTR 与 CVR 都可使用“用户-商品匹配”共享专家；CTR 专家学习吸引点击的素材特征，CVR 专家学习价格与购买意愿。CVR Gate 不会直接读取 CTR 私有专家，但共享 Gate 可以从两侧提炼共同成分。</p>
+<p><strong>与 MMoE 的关键差异：</strong> MMoE 所有专家都是共享专家，只是每任务权重不同；PLE 显式提供任务专属专家并限制跨任务路径。它不仅是“更多专家”，而是加入了结构化的信息隔离。</p>
+<p><strong>Seesaw，跷跷板，如何评估：</strong> 不只看总 Loss。需要比较单任务模型、Shared-Bottom、MMoE 和 PLE 的每个任务 AUC/LogLoss、不同人群切片和线上业务指标，观察一个任务上涨时另一个是否持续下跌。</p>
+<p><strong>优点：</strong> 共享与私有表示同时存在；多层逐步提取；更能缓解负迁移与跷跷板；任务 Gate 仍可按样本动态选择。</p>
+<p><strong>局限与工程成本：</strong> 任务数增加时专属专家数量膨胀；多层 Gate 与专家提高推理延迟；专家数、层数、共享/专属比例和 Loss 权重需要共同调节；专属专家并不能自动解决梯度尺度和标签偏差。</p>
+<p>PLE 在每层 CGC 中同时放共享专家和任务专属专家。任务 Gate 只能读取共享加本任务专家，共享 Gate 可聚合所有专家供下一层继续提炼，因此共享与私有信息逐层分离。相对 MMoE，它通过显式路径隔离更好缓解负迁移，但参数、门控和服务成本也更高。</p>
+<h3>6.6 SNR</h3>
+<p>Sub-Network Routing，子网络路由。SNR 不只在最后混合专家输出，而是把深层网络每一层拆成多个 Sub-network Block，子网络块，并学习任务表示在层与层之间走哪些连接。</p>
+<p><strong>结构直觉：</strong> 假设每层有 $K$ 个块，上一层第 $i$ 个块到下一层第 $j$ 个块的连接由路由系数 $r_{ij}^{l,t}$ 控制：</p>
+<p>$$
+\mathbf h_{j}^{l+1,t}
+=f_j^l!\left(
+\sum_{i=1}^{K}r_{ij}^{l,t}\mathbf h_i^{l,t}
+\right).
+$$</p>
+<p>$t$ 表示任务，$f_j^l$ 是第 $l$ 层第 $j$ 个子网络。路由系数可连续松弛训练，并通过稀疏正则让最终拓扑只保留少量连接。</p>
+<p><strong>它在学习什么：</strong> 某些底层块可被所有任务共享，某些中层只服务相近任务，高层再分叉成任务私有路径。共享结构不再由人工规定为“前 N 层共享、后 M 层独立”，而是从数据中搜索。</p>
+<p><strong>Routing Regularization，路由正则：</strong> 若所有连接都打开，模型退化为巨大稠密网络；若过早变成 0，某些路径无法训练。实践需在任务损失之外加入稀疏或复杂度约束，并控制连续路由到离散部署结构的转换。</p>
+<p><strong>相对 MMoE/PLE：</strong> MMoE/PLE 在每层专家输出上做样本级加权，重点是“当前输入使用哪些专家”；SNR 更像学习任务级网络连接和子网拓扑，重点是“哪些参数块在哪些层共享”。</p>
+<p><strong>优点：</strong> 参数共享结构灵活；可发现任务簇和层级关系；稀疏化后有机会裁剪无用路径。</p>
+<p><strong>局限：</strong> 网络结构搜索与普通训练耦合，优化更不稳定；连续路由训练与离散服务可能有落差；拓扑复杂、调试困难；任务和层数多时搜索空间迅速增大。</p>
+<p>SNR 把每层网络拆成多个子块，并学习任务在层间的路由矩阵，自动决定哪些块共享、哪些路径分离。它比 MMoE/PLE 更像可微的网络拓扑搜索，而不是只对专家输出加权；灵活性高，但优化、稀疏化和部署结构都更复杂。</p>
+<h3>6.7 多任务 loss 权重</h3>
+<p><strong>为什么不能随便相加：</strong> 点击率可能是 5%，转化率只有千分之一；分类、回归和排序损失的数值尺度也不同。固定相加后，梯度大的任务会主导共享参数，不代表它的业务价值更高。</p>
+<p>$$
+\mathcal L=\sum_t\lambda_t\mathcal L_t.
+$$</p>
+<p>$\lambda_t$ 是任务权重。它同时影响任务 Tower 和共享主干的更新，需要结合标签率、成熟延迟、业务价值与梯度尺度设计。</p>
+<p><strong>Uncertainty Weighting，不确定性加权：</strong> 为每个任务学习噪声尺度 $\sigma_t$：</p>
+<p>$$
+\mathcal L
+=\sum_t\left[
+\frac{1}{2\sigma_t^2}\mathcal L_t+\log\sigma_t
+\right].
+$$</p>
+<p>噪声大、难拟合的任务自动获得较小权重，$\log\sigma_t$ 防止把 $\sigma_t$ 无限增大。它实现简单，但“训练噪声”不等同于业务价值，分类和回归形式也要按推导调整。</p>
+<p><strong>GradNorm，梯度范数平衡：</strong> 计算各任务在共享层的梯度范数，动态调整 $\lambda_t$，让训练过快的任务降权、训练落后的任务增权。它直接控制共享更新强度，但需要额外求梯度范数，任务多时成本明显。</p>
+<p><strong>DWA，Dynamic Weight Average，动态权重平均：</strong> 根据各任务最近若干轮 Loss 的下降速度分配权重。下降慢的任务得到更高权重，并用温度 Softmax 控制差异。它不需要额外反向传播，但 Loss 震荡或标签延迟时权重可能不稳定。</p>
+<p><strong>PCGrad，Projected Conflicting Gradient，冲突梯度投影：</strong> 若任务 $i,j$ 的梯度内积为负，说明方向冲突，就把 $\mathbf g_i$ 在 $\mathbf g_j$ 方向上的冲突分量去掉：</p>
+<p>$$
+\mathbf g_i
+\leftarrow
+\mathbf g_i-
+\frac{\mathbf g_i^{\mathsf T}\mathbf g_j}
+{|\mathbf g_j|_2^2}\mathbf g_j,
+\qquad
+\mathbf g_i^{\mathsf T}\mathbf g_j&lt;0.
+$$</p>
+<p>它直接缓解梯度冲突，不只是调整 Loss 标量；但任务顺序、额外梯度存储和优化噪声需要注意。</p>
+<p><strong>业务权重：</strong> 广告系统最终可能优化 $pCTR\times pCVR\times value$，但不能直接让高价值稀疏任务完全主导训练。常用做法是先保证各任务概率质量，再在排序融合、竞价或重排阶段加入价值权重，并通过线上实验校准。</p>
+<p><strong>标签成熟度：</strong> 点击几分钟内成熟，转化可能几天后才回传。训练样本若过早截断，会把尚未发生的转化标成负例。可设置成熟窗口、延迟反馈模型或按样本年龄调整权重。</p>
+<p><strong>评估原则：</strong> 不要只看总 Loss。分别监控每个任务 AUC、PR-AUC、LogLoss、校准和业务切片，再看最终融合分数、收入、转化量和用户体验 Guardrail，护栏指标。自动权重方法也必须与固定业务权重做消融。</p>
+<h2>7. 生成式推荐</h2>
+<h3>7.1 判别式与生成式区别</h3>
+<p><strong>判别式推荐：</strong> 给定用户 $u$ 和候选物品 $i$，直接学习分数或概率：</p>
+<p>$$
+s(u,i)=f_\theta(u,i),
+\qquad
+p(y=1\mid u,i)=\sigma(s(u,i)).
+$$</p>
+<p>召回双塔通过 ANN 近似搜索，精排模型对有限候选逐个打分。候选集合由上游给定，模型主要学习“这个候选有多好”。</p>
+<p><strong>生成式推荐：</strong> 把物品 ID 或 Semantic ID，语义标识，表示为 token 序列，自回归预测：</p>
+<p>$$
+P(c_1,\ldots,c_m\mid H_u)
+=\prod_{\ell=1}^{m}
+P(c_\ell\mid H_u,c_{&lt;\ell}).
+$$</p>
+<p>$H_u$ 是用户历史，$c_1,\ldots,c_m$ 是目标物品的多级代码。模型先生成第一级，再以已生成前缀预测下一级，最终还原物品。</p>
+<p><strong>Semantic ID 是什么：</strong> 普通 item_id 只是任意编号，两个相似物品的 ID 没有共享结构。Semantic ID 用多个离散 Codeword，码字，表示物品；相似物品可以共享前缀，使模型在 token 层共享统计强度。</p>
+<p><strong>生成式召回不等于生成文本：</strong> 输出空间通常受物品码表和前缀树约束，目标是生成合法物品标识，不是自由写自然语言。模型可用 Beam Search，束搜索，保留多个高概率前缀，最终得到候选列表。</p>
+<p><strong>可能优势：</strong> 一个序列模型统一用户历史和物品生成；多级代码缩小每步词表；共享前缀帮助长尾与冷启动；可利用预训练、模型扩展和生成式偏好对齐方法；有机会将召回与排序放入统一目标。</p>
+<p><strong>核心挑战：</strong></p>
+<ul>
+<li>Tokenizer，分词器或物品编码器，决定的信息上限；</li>
+<li>生成前缀可能没有对应真实物品，需要 Constrained Decoding，约束解码；</li>
+<li>Beam Search 延迟随束宽和 SID 长度增长；</li>
+<li>自回归误差逐级累积，早期 code 错误无法由后缀恢复；</li>
+<li>新物品加入后 SID 与前缀树要增量更新；</li>
+<li>训练 next-item 概率不天然等于校准的 pCTR/pCVR；</li>
+<li>广告还需预算、出价、频控、审核和拍卖，不能只按生成概率展示。</li>
+</ul>
+<p><strong>评价指标：</strong> 除 Recall@K、NDCG@K，还要看合法 ID 率、重复率、覆盖率、长尾命中、解码延迟、每步 token 熵、SID 冲突和索引更新成本。</p>
+<h3>7.2 TIGER</h3>
+<p>TIGER 是 Semantic ID 生成式检索的代表方案，论文主题是 Recommender Systems with Generative Retrieval，使用生成式检索的推荐系统。它先把物品内容向量离散成多级语义代码，再训练序列到序列 Transformer 生成下一物品的代码。</p>
+<p><strong>完整流程：</strong></p>
+<pre><code class="language-text">item content embedding
+-&gt; RQ-VAE 多级量化
+-&gt; Semantic ID tokens
+-&gt; encoder-decoder Transformer 根据用户历史生成下一 item 的 SID
+</code></pre>
+<p><strong>第一步：物品内容表示。</strong> 使用文本、标题、描述或其他内容编码器得到连续物品向量 $\mathbf z$。该向量提供语义冷启动能力，但若内容编码器没有使用协同行为，语义相近不一定代表同一人群会连续消费。</p>
+<p><strong>第二步：RQ-VAE。</strong> Residual-Quantized Variational AutoEncoder，残差量化变分自编码器，用多层码本逐级逼近 $\mathbf z$。第一层选最近码字 $\mathbf e_{c_1}^{(1)}$，计算残差；第二层再量化残差：</p>
+<p>$$
+\begin{aligned}
+\mathbf r_0&amp;=\mathbf z,\
+c_\ell&amp;=\arg\min_k
+|\mathbf r_{\ell-1}-\mathbf e_k^{(\ell)}|<em>2^2,\
+\mathbf r</em>\ell&amp;=\mathbf r_{\ell-1}
+-\mathbf e_{c_\ell}^{(\ell)},\
+\hat{\mathbf z}&amp;=\sum_{\ell=1}^{M}
+\mathbf e_{c_\ell}^{(\ell)}.
+\end{aligned}
+$$</p>
+<p>$M$ 是 SID 层数，$c_\ell$ 是第 $\ell$ 层 code，$\mathbf r_\ell$ 是剩余未重构部分。最终物品 SID 为 $(c_1,\ldots,c_M)$。</p>
+<p><strong>VQ 训练方法：</strong> 最近码字选择是离散的，通常用 Straight-Through Estimator，直通估计器，让反向梯度近似穿过量化操作；同时使用重构损失、码本损失和 Commitment Loss，承诺损失，防止编码器输出频繁跳动。</p>
+<p><strong>第三步：生成模型。</strong> 将用户历史中每个物品替换为 SID token，Encoder-Decoder Transformer 根据历史生成目标 SID。训练使用 Teacher Forcing，教师强制：预测第 $\ell$ 个 code 时喂入真实前缀；推理时前缀来自模型自己，因此存在 Exposure Bias，暴露偏差。</p>
+<p><strong>Collision，碰撞：</strong> 若两个物品得到相同 SID，生成结果无法唯一还原 item。可增加最后一个 Collision Token，碰撞区分码，或让 SID 容量足够并建立唯一映射。但额外区分码往往缺少语义，最后一步仍可能接近记忆 ID。</p>
+<p><strong>Constrained Beam Search，约束束搜索：</strong> 用真实 SID 构建 Prefix Trie，前缀树。每一步只允许扩展树中存在的子 code，保证最终序列对应有效物品；再对多个合法 Beam 去重、过滤已看物品并截取 Top-K。</p>
+<p><strong>优点：</strong> 把百万 item 类别拆成多个较小 codebook；相似物品共享部分代码，促进长尾和冷启动泛化；直接生成候选，不必全库逐物品打分；开创了 SID 生成式检索的重要范式。</p>
+<p><strong>局限：</strong> 内容语义不等于协同关系；RQ-VAE 主要优化连续向量重构，不保证 code 易被下一物品模型预测；不同码本层可能 Codebook Collapse，码本塌缩；自回归早期错误累积；碰撞和合法解码复杂；Tokenizer 与推荐模型分阶段训练，目标错位。</p>
+<p><strong>与 ReSID 的关系：</strong> TIGER 代表“内容语义 Embedding + RQ-VAE 重构量化”；ReSID 分别改造连续表示和离散量化，使其更贴近推荐协同信息与前缀可预测性。</p>
+<p>TIGER 先用内容编码器得到物品向量，再由 RQ-VAE 逐级量化残差形成 Semantic ID，最后训练 Encoder-Decoder Transformer 根据用户历史生成下一 SID，并用前缀树约束 Beam Search。它缩小词表、帮助冷启动，但内容语义与协同偏好可能错位，RQ-VAE 重构目标也不等于自回归可预测目标。</p>
+<h3>7.3 HSTU Generative Recommender</h3>
+<p><strong>传统 DLRM 拼装方式：</strong> 召回、序列特征提取、特征交互、CTR/CVR Tower 往往由不同模块分别训练，用户历史在多个阶段被重复编码，目标也不完全一致。</p>
+<p><strong>HSTU 的统一方式：</strong> 将 Item、Action，行为类型，和时间上下文组织为事件流，在每个历史位置预测后续事件：</p>
+<p>$$
+\mathcal L_{\mathrm{gen}}
+=-\sum_{t=1}^{L-1}
+\log P_\theta(x_{t+1}\mid x_{\le t}).
+$$</p>
+<p>$x_t$ 可以包含物品与动作 token。一个长度 $L$ 的序列提供约 $L-1$ 个训练目标，比只在序列末尾使用一个曝光标签有更高监督密度。</p>
+<p><strong>为何能同时服务 Retrieval 与 Ranking：</strong> Retrieval，召回，可使用历史状态产生候选物品分布或向量；Target-aware Ranking，目标感知排序，可把候选作为新 token 接到共享历史后，用缓存的历史 KV 和候选微批计算条件分数。两者共享同一序列主干，但输出头、候选约束和校准仍可不同。</p>
+<p><strong>Encoder 计算复用：</strong> 同一用户的历史只编码一次。多个候选共享历史缓存，仅追加不同候选位置执行后续层，这与每个候选重新跑完整 DIN/BST 序列相比更适合大模型排序。</p>
+<p><strong>生成目标的好处：</strong> 用户每一次真实行为都成为监督；表示学习、行为转移和候选打分围绕统一条件概率；模型容量增加时可观察类似序列模型的 Scaling 趋势。</p>
+<p><strong>仍需补齐的广告问题：</strong> 下一物品概率不是 pCTR 或 pCVR；训练日志由旧策略采集，仍有曝光偏差；预算、出价和频控不是语言式生成自然解决的；转化延迟与价值目标需要多任务头、偏好优化或后级融合。</p>
+<p>HSTU 将物品、动作和异构特征统一成流式序列，用每个位置预测后续事件的生成损失训练。召回可从序列状态生成候选，排序则复用历史 KV、把多个候选作为微批追加打分，从而共享主干计算。它代表从多个 DLRM 模块转向统一序列转导，但广告概率校准、竞价与延迟转化仍需额外设计。</p>
+<h3>7.4 OneRec</h3>
+<p>OneRec: Unifying Retrieve and Rank with Generative Recommender and Iterative Preference Alignment，使用生成式推荐与迭代偏好对齐统一召回和排序。它不满足于让生成模型只做召回 Selector，选择器，而是尝试用一个生成模型直接产出高质量推荐会话。</p>
+<p><strong>Encoder-Decoder 主干：</strong> Encoder 编码用户历史行为，Decoder 自回归生成用户可能感兴趣的视频或物品 token。解码概率为：</p>
+<p>$$
+P(Y\mid H_u)
+=\prod_{t=1}^{|Y|}
+P(y_t\mid y_{&lt;t},H_u).
+$$</p>
+<p>$H_u$ 是用户历史，$Y$ 不只是单个下一物品，也可以是一段推荐 Session，会话。</p>
+<p><strong>Sparse MoE 扩容：</strong> 将部分 FFN 替换为稀疏混合专家，每个 token 只路由到少量专家。这样参数容量可以增长，而每 token 计算量不按专家总数同比增长。部署时仍需处理路由负载均衡和跨设备通信。</p>
+<p><strong>Session-wise Generation，会话级生成：</strong> 传统 Next-item Prediction 每次只生成一个候选，最后需要人工规则把多个独立候选拼成列表，容易重复或缺少上下文连贯性。OneRec 直接生成一个会话级结果序列，后一个结果以已生成结果为条件，因此模型可学习列表内互补、顺序和多样性。</p>
+<p><strong>为什么仍要 Preference Alignment，偏好对齐：</strong> 最大似然训练只模仿日志中的历史结果，而日志来自旧策略，也未直接优化最终观看时长或用户满意度。OneRec 使用迭代偏好对齐，让模型更偏向高奖励列表。</p>
+<p><strong>DPO，Direct Preference Optimization，直接偏好优化：</strong> 给定更优结果 $Y^+$ 和较差结果 $Y^-$，相对参考模型 $\pi_{\mathrm{ref}}$ 优化：</p>
+<p>$$
+\mathcal L_{\mathrm{DPO}}
+=-\log\sigma!\left(
+\beta\left[
+\log\frac{\pi_\theta(Y^+\mid H)}
+{\pi_{\mathrm{ref}}(Y^+\mid H)}
+-\log\frac{\pi_\theta(Y^-\mid H)}
+{\pi_{\mathrm{ref}}(Y^-\mid H)}
+\right]\right).
+$$</p>
+<p>$\beta$ 控制偏好更新强度。它提高优质列表相对劣质列表的概率，同时参考模型限制分布漂移。</p>
+<p><strong>推荐 DPO 的样本难题：</strong> 同一次真实请求通常只展示一份列表，不像人工偏好数据能同时观察正负回答，因而无法直接获得同条件的 $Y^+,Y^-$。OneRec 使用 Reward Model，奖励模型，模拟用户反馈并定制采样策略，从多个生成候选中构造偏好对，再迭代更新。</p>
+<p><strong>统一召回排序的含义：</strong> 传统召回先优化覆盖，排序再优化精细目标，候选一旦漏掉无法恢复。OneRec 让生成概率与偏好对齐共同决定最终序列，减少两个独立模型的目标错位。但工业上仍可能保留审核、去重、频控和安全规则，并不等于所有后处理消失。</p>
+<p><strong>优点：</strong> 生成与列表偏好统一；会话级生成显式考虑结果间依赖；Sparse MoE 支持容量扩展；DPO 将观看时长等序列级奖励带入模型。</p>
+<p><strong>局限与工程成本：</strong> 自回归解码延迟高；奖励模型误差会被偏好训练放大；日志偏差和探索不足仍存在；大词表、合法 token、重复结果和动态新物品需要约束；广告出价与多目标概率难完全由一个生成概率替代。</p>
+<p><strong>与 TIGER 比较：</strong> TIGER 重点是用 Semantic ID 实现生成式 Retrieval；OneRec 更进一步关注召回排序统一、会话级生成、Sparse MoE 扩容和 DPO 偏好对齐。</p>
+<p>OneRec 用 Encoder-Decoder 编码用户历史并生成整个推荐会话，而不只逐点生成单个候选；用 Sparse MoE 扩大容量，并通过奖励模型构造偏好对、使用 DPO 迭代对齐观看时长等目标。它尝试统一召回和排序，但奖励模型偏差、自回归延迟、合法解码和广告竞价仍是落地难点。</p>
+<h3>7.5 OneReason</h3>
+<p>OneReason 研究生成式推荐中的 Reasoning，推理能力。它发现仅把“先思考再回答”的自然语言 CoT 形式套到 item token 推荐上，Thinking 模式不一定优于直接生成，因为模型可能既不理解 itemic token 的语义，也不会把长历史重组为可操作的兴趣结构。</p>
+<p><strong>两个前提：</strong></p>
+<ul>
+<li>Perception，感知：知道离散 itemic token 背后是什么物品、属性和语义；</li>
+<li>Cognition，认知：能从用户历史提取长期画像、扩展潜在兴趣，并判断兴趣如何转移。</li>
+</ul>
+<h4>7.5.1 预训练：建立 Itemic Token 感知</h4>
+<p>Itemic Token 是物品专用的离散 token 组合，可包含领域起始 token 与多个子 token。它便于自回归生成，但编号本身没有自然语言含义。OneReason 使用四个粒度的预训练任务对齐 token 与语言：</p>
+<ol>
+<li>Token 粒度：学习单个子 token 或前缀对应的语义；</li>
+<li>Item 粒度：学习完整物品 token 模式与文本描述的双向映射；</li>
+<li>Relation 粒度：学习物品间关系与可能的兴趣转移；</li>
+<li>User 粒度：学习用户画像、跨域行为和时间线上的兴趣变化。</li>
+</ol>
+<p>这一步不是简单给每个 item 拼一段标题，而是让模型能在 item token 与语言语义之间双向转换，为后续 CoT 提供可理解的“感知对象”。</p>
+<h4>7.5.2 SFT：结构化推荐认知</h4>
+<p>SFT 是 Supervised Fine-Tuning，监督微调。OneReason 将能力分成 R0 到 R3：</p>
+<ul>
+<li>R0 Perception，感知：理解物品 token，生成描述或回答内容问题；</li>
+<li>R1 Derivation，推导：理解物品到物品的关联，例如从视频兴趣扩展到相关商品；</li>
+<li>R2 Evolution，演化：识别用户兴趣随时间增强、衰减或跨域转移；</li>
+<li>R3 Recommendation，推荐：综合画像、历史和兴趣演化生成最终物品。</li>
+</ul>
+<p><strong>三层推荐 CoT：</strong></p>
+<ol>
+<li>User Profile Abstraction，用户画像抽象：提取长期稳定偏好、消费能力和内容风格；</li>
+<li>Interest Expansion，兴趣扩展：从历史证据形成若干潜在兴趣点；</li>
+<li>Interest Transition，兴趣转移：结合时效、行为强度和上下文选择最可能的下一兴趣。</li>
+</ol>
+<p>结构化 CoT 先压缩再推理，避免模型逐条复述长历史却没有有效结论。推荐推理更接近 Abductive Reasoning，溯因推理：从行为证据推断最可能的潜在兴趣，而不是数学证明式演绎。</p>
+<h4>7.5.3 RL：Specialize Then Unify</h4>
+<p>RL 是 Reinforcement Learning，强化学习。论文观察到直接把多个业务混合做 RL，Thinking 优势不稳定，因此采用：</p>
+<ol>
+<li>Specialize，专门化：分别在短视频、商品、广告、直播等域做领域 RL；</li>
+<li>Unify，统一：再通过 RFT，强化微调，或多教师蒸馏，将多个领域能力合并进统一模型。</li>
+</ol>
+<p>奖励不仅看是否命中真实 item，也可考虑候选多样性；Reasoning Token 与 Item Token 的优化强度可区别处理，防止模型只学会输出冗长推理而忽略最终推荐。</p>
+<h4>7.5.4 Fast-Slow Thinking 部署</h4>
+<p>Slow Path，慢链路，使用 OneReason 做高成本结构化推理，适合近线生成候选、兴趣摘要或教师信号；Fast Path，快链路，继续由实时推荐模型处理毫秒级请求，并融合慢链路结果。也可把 CoT 产生的兴趣状态蒸馏到轻量模型，线上不输出推理文本。</p>
+<p><strong>为什么训练 CoT 可能帮助 Non-thinking：</strong> 合适比例的 CoT 监督可能把证据选择、历史压缩和兴趣转移能力写入参数，即使推理时直接输出 item 也能受益。但 CoT 比例过高会减少最终答案 token 的监督密度并造成格式不匹配。</p>
+<p><strong>优点：</strong> 不把 item token 当无语义编号；给推荐专门设计感知、推导、演化和推荐能力；结构化 CoT 减少无效自由发挥；强化学习与快慢链路考虑了业务目标和部署。</p>
+<p><strong>局限与质疑：</strong> 高质量 CoT、关系和兴趣演化数据依赖强教师模型与规则过滤；推理文本可能幻觉、泄漏用户隐私或为错误推荐编造理由；收益可能来自额外监督与信息压缩，不一定证明存在可泛化“真正推理”；慢链路更新新鲜度和蒸馏损失需要监控。</p>
+<p><strong>与 OneRec 的关系：</strong> OneRec 重点是生成式召回排序统一、会话生成和偏好对齐；OneReason 在 OneRec 家族基础上增加 item token 感知、结构化推荐 CoT 和分域后统一的 RL，使 Scaling，规模扩展，之外出现可训练的推理路径。</p>
+<p>OneReason 认为推荐推理先要解决感知和认知。预训练用 token、物品、关系、用户四个粒度对齐 itemic token 与语言；SFT 用 R0 到 R3 和“画像抽象、兴趣扩展、兴趣转移”三层 CoT 训练推荐认知；RL 先分领域专门化再统一。线上采用快慢链路或蒸馏。面试还要质疑收益是否来自真实推理、额外监督还是历史压缩，以及幻觉、隐私和延迟。</p>
+<h2>8. 模型横向比较</h2>
+<h3>8.1 特征交互模型</h3>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>显式交互方式</th>
+<th>动态性</th>
+<th>主要代价</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>LR</td>
+<td>一阶；人工交叉后可高阶</td>
+<td>固定权重</td>
+<td>依赖特征工程</td>
+</tr>
+<tr>
+<td>FM</td>
+<td>潜在向量内积自动二阶</td>
+<td>固定内积</td>
+<td>只有二阶</td>
+</tr>
+<tr>
+<td>FFM</td>
+<td>特征面对不同域用不同向量</td>
+<td>固定域感知</td>
+<td>参数约增至域数倍</td>
+</tr>
+<tr>
+<td>Wide&amp;Deep</td>
+<td>Wide 人工交叉 + Deep 隐式交互</td>
+<td>Deep 按样本</td>
+<td>两套特征维护</td>
+</tr>
+<tr>
+<td>PNN</td>
+<td>内积或外积乘积层</td>
+<td>后续 MLP 动态</td>
+<td>字段对平方增长</td>
+</tr>
+<tr>
+<td>NFM</td>
+<td>二阶向量双交互池化 + MLP</td>
+<td>池化后动态</td>
+<td>丢失交互来源</td>
+</tr>
+<tr>
+<td>DeepFM</td>
+<td>FM 显式二阶 + DNN 隐式高阶</td>
+<td>DNN 按样本</td>
+<td>显式部分只二阶</td>
+</tr>
+<tr>
+<td>DCN</td>
+<td>向量 Cross Layer 递归有界高阶</td>
+<td>输入参与交叉</td>
+<td>原层表达秩低</td>
+</tr>
+<tr>
+<td>DCN-V2</td>
+<td>矩阵/低秩专家 Cross</td>
+<td>门控可动态</td>
+<td>矩阵与专家成本</td>
+</tr>
+<tr>
+<td>xDeepFM</td>
+<td>CIN 向量级显式高阶</td>
+<td>权重固定、深层传播</td>
+<td>张量实现较复杂</td>
+</tr>
+<tr>
+<td>AFM</td>
+<td>对二阶特征对做注意力加权</td>
+<td>样本动态</td>
+<td>仍主要二阶</td>
+</tr>
+<tr>
+<td>AutoInt</td>
+<td>多头自注意力传播字段关系</td>
+<td>样本动态</td>
+<td>$O(F^2d)$</td>
+</tr>
+<tr>
+<td>FiBiNET</td>
+<td>SENET 重标定 + 双线性交互</td>
+<td>样本动态</td>
+<td>字段对和矩阵较多</td>
+</tr>
+</tbody></table>
+<h3>8.2 序列兴趣模型</h3>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>主要问题</th>
+<th>历史如何使用</th>
+<th>目标候选是否参与</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GRU4Rec</td>
+<td>会话下一物品</td>
+<td>GRU 串行状态</td>
+<td>通常最后点积</td>
+</tr>
+<tr>
+<td>SASRec</td>
+<td>长距离因果依赖</td>
+<td>因果自注意力</td>
+<td>通常最后点积</td>
+</tr>
+<tr>
+<td>BERT4Rec</td>
+<td>双向序列表示</td>
+<td>掩码物品预测</td>
+<td>推理末尾 Mask</td>
+</tr>
+<tr>
+<td>DIN</td>
+<td>多兴趣选择</td>
+<td>对原始行为加权</td>
+<td>是，每候选查询</td>
+</tr>
+<tr>
+<td>DIEN</td>
+<td>兴趣提取与演化</td>
+<td>双 GRU + 辅助损失</td>
+<td>是，控制 AUGRU</td>
+</tr>
+<tr>
+<td>DSIN</td>
+<td>会话层级兴趣</td>
+<td>会话内注意力 + 会话间 Bi-LSTM</td>
+<td>是</td>
+</tr>
+<tr>
+<td>BST</td>
+<td>行为组合与目标交互</td>
+<td>Transformer</td>
+<td>是，目标为 token</td>
+</tr>
+<tr>
+<td>SIM</td>
+<td>终身行为搜索</td>
+<td>GSU 先筛、ESU 精算</td>
+<td>是，两阶段</td>
+</tr>
+<tr>
+<td>TWIN</td>
+<td>两阶段度量不一致</td>
+<td>同构度量 + 缓存投影</td>
+<td>是，两阶段一致</td>
+</tr>
+</tbody></table>
+<h3>8.3 超长序列大模型</h3>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>出发点</th>
+<th>关键机制</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>LONGER</td>
+<td>端到端超长序列压缩</td>
+<td>全局 token、标记合并、混合注意力</td>
+<td>压缩损失与 GPU 成本</td>
+</tr>
+<tr>
+<td>HSTU</td>
+<td>生成式序列转导与规模扩展</td>
+<td>逐点聚合注意力、随机长度、变长 Kernel、候选微批</td>
+<td>训服基础设施与概率校准</td>
+</tr>
+<tr>
+<td>HyFormer</td>
+<td>长序列与非序列交互统一</td>
+<td>查询解码 + 查询增强</td>
+<td>候选相关查询降低缓存复用</td>
+</tr>
+</tbody></table>
+<h3>8.4 多任务模型</h3>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>解决问题</th>
+<th>核心约束</th>
+<th>容易答错的点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Shared-Bottom</td>
+<td>基础数据共享</td>
+<td>单一共享主干</td>
+<td>任务冲突会负迁移</td>
+</tr>
+<tr>
+<td>ESMM</td>
+<td>CVR 选择偏差与稀疏</td>
+<td>$p_{\mathrm{CTCVR}}=p_{\mathrm{CTR}}p_{\mathrm{CVR}}$</td>
+<td>不代表完全无偏</td>
+</tr>
+<tr>
+<td>ESM2</td>
+<td>点击后监督稀疏</td>
+<td>行为图分解与概率组合</td>
+<td>中间动作不一定线性</td>
+</tr>
+<tr>
+<td>ESCM2</td>
+<td>ESMM 估计偏差</td>
+<td>IPS/DR 反事实正则</td>
+<td>倾向小会高方差</td>
+</tr>
+<tr>
+<td>MMoE</td>
+<td>动态学习任务共享关系</td>
+<td>每任务门控混合共享专家</td>
+<td>经典版本通常稠密计算</td>
+</tr>
+<tr>
+<td>PLE</td>
+<td>负迁移与跷跷板</td>
+<td>共享+任务专家渐进抽取</td>
+<td>不只是“专家更多”</td>
+</tr>
+<tr>
+<td>SNR</td>
+<td>自动学习共享拓扑</td>
+<td>子网络层间路由</td>
+<td>更像结构搜索</td>
+</tr>
+</tbody></table>
+<h3>8.5 生成式推荐模型</h3>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>主要创新</th>
+<th>物品编码</th>
+<th>训练/解码重点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>TIGER</td>
+<td>SID 生成式召回</td>
+<td>内容向量 + RQ-VAE</td>
+<td>前缀树约束束搜索</td>
+</tr>
+<tr>
+<td>HSTU</td>
+<td>统一序列转导主干</td>
+<td>物品/动作事件 token</td>
+<td>每位置生成监督 + KV 复用</td>
+</tr>
+<tr>
+<td>OneRec</td>
+<td>召回排序统一、会话生成</td>
+<td>Itemic/SID token</td>
+<td>Sparse MoE + DPO 偏好对齐</td>
+</tr>
+<tr>
+<td>OneReason</td>
+<td>生成式推荐推理</td>
+<td>语义对齐 Itemic Token</td>
+<td>结构化 CoT + 分域后统一 RL</td>
+</tr>
+</tbody></table>
+<h2>9. 常见公式</h2>
+<ol>
+<li><strong>LR 与 BCE：</strong> $p=\sigma(\mathbf w^{\mathsf T}\mathbf x+b)$，$\mathcal L=-y\log p-(1-y)\log(1-p)$。要能解释 Logit、Sigmoid 和概率校准。</li>
+<li><strong>FM 二阶：</strong> $\sum_{i&lt;j}\langle\mathbf v_i,\mathbf v_j\rangle x_ix_j$。要会推导为“和的平方减平方的和”，复杂度从 $O(n^2k)$ 降到 $O(nk)$。</li>
+<li><strong>BPR 成对排序：</strong> $\mathcal L=-\log\sigma(s_i-s_j)$。要解释分差、困难负样本，以及为什么输出不天然是校准概率。</li>
+<li><strong>采样 Softmax：</strong> $-\log\frac{\exp(s^+/\tau)}{\exp(s^+/\tau)+\sum_j\exp(s_j^-/\tau)}$。要解释温度、批内负样本、假负样本和 $\log q$ 采样修正。</li>
+<li><strong>DCN：</strong> $\mathbf x_{l+1}=\mathbf x_0(\mathbf x_l^{\mathsf T}\mathbf w_l)+\mathbf b_l+\mathbf x_l$。要说明一层最高增加一阶，以及原版为何表达受限。</li>
+<li><strong>DCN-V2：</strong> $\mathbf x_{l+1}=\mathbf x_0\odot(\mathbf W_l\mathbf x_l+\mathbf b_l)+\mathbf x_l$。要说明矩阵交叉、低秩 $\mathbf W=\mathbf U\mathbf V^{\mathsf T}$ 和专家门控。</li>
+<li><strong>DIN：</strong> $a_i=\operatorname{MLP}[\mathbf e_i,\mathbf q,\mathbf e_i-\mathbf q,\mathbf e_i\odot\mathbf q]$，$\mathbf u(q)=\sum_i a_i\mathbf e_i$。要回答为何可不做 Softmax。</li>
+<li><strong>缩放点积注意力：</strong> $\operatorname{softmax}(QK^{\mathsf T}/\sqrt d)V$。要解释 Query、Key、Value、缩放、Mask 和多头。</li>
+<li><strong>ESMM：</strong> $p_{\mathrm{CTCVR}}=p_{\mathrm{CTR}}p_{\mathrm{CVR}}$。要从条件概率链式法则推导，并说明 CVR 为间接监督。</li>
+<li><strong>MMoE：</strong> $\mathbf h_t=\sum_i g_{t,i}(\mathbf x)f_i(\mathbf x)$。要解释任务门控、稠密专家计算和 Gate Collapse。</li>
+<li><strong>下采样先验修正：</strong> $\frac{p}{1-p}=\frac{p_s}{1-p_s}\frac{r_0}{r_1}$。要说明 AUC 可能不变，但未修正概率会偏。</li>
+<li><strong>IPS：</strong> $\mathcal R_{\mathrm{IPS}}=\frac1N\sum_i\frac{c_i}{\hat p_i}\ell_i$。要解释倾向概率、无偏条件、权重裁剪和方差。</li>
+<li><strong>AUC：</strong> 可理解为随机正样本分数高于随机负样本的概率，也可用秩和计算。要会区分排序能力与概率校准。</li>
+<li><strong>NDCG：</strong> $\operatorname{NDCG@K}=\operatorname{DCG@K}/\operatorname{IDCG@K}$，其中 $\operatorname{DCG@K}=\sum_{i=1}^{K}(2^{rel_i}-1)/\log_2(i+1)$。要解释位置折损和理想排序归一化。</li>
+</ol>
+<h2>10. 参考论文</h2>
+<h3>召回与基础序列</h3>
+<ul>
+<li><a href="https://ieeexplore.ieee.org/document/5197422">Matrix Factorization Techniques for Recommender Systems</a></li>
+<li><a href="https://research.google/pubs/deep-neural-networks-for-youtube-recommendations/">YouTube DNN Candidate Generation</a></li>
+<li><a href="https://arxiv.org/abs/1904.08030">MIND 多兴趣动态路由</a></li>
+<li><a href="https://arxiv.org/abs/1511.06939">GRU4Rec</a></li>
+<li><a href="https://arxiv.org/abs/1808.09781">SASRec</a></li>
+<li><a href="https://arxiv.org/abs/1904.06690">BERT4Rec</a></li>
+</ul>
+<h3>特征交互</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/1606.07792">Wide &amp; Deep</a></li>
+<li><a href="https://arxiv.org/abs/1611.00144">PNN</a></li>
+<li><a href="https://arxiv.org/abs/1703.04247">DeepFM</a></li>
+<li><a href="https://arxiv.org/abs/1708.05123">DCN</a></li>
+<li><a href="https://arxiv.org/abs/2008.13535">DCN-V2</a></li>
+<li><a href="https://arxiv.org/abs/1708.05027">NFM</a></li>
+<li><a href="https://arxiv.org/abs/1803.05170">xDeepFM</a></li>
+<li><a href="https://arxiv.org/abs/1708.04617">AFM</a></li>
+<li><a href="https://arxiv.org/abs/1810.11921">AutoInt</a></li>
+<li><a href="https://arxiv.org/abs/1905.09433">FiBiNET</a></li>
+<li><a href="https://www.csie.ntu.edu.tw/~cjlin/papers/ffm.pdf">FFM</a></li>
+<li><a href="https://arxiv.org/abs/1806.03514">FwFM</a></li>
+<li><a href="https://research.facebook.com/publications/practical-lessons-from-predicting-clicks-on-ads-at-facebook/">GBDT+LR 广告点击率实践</a></li>
+</ul>
+<h3>序列与长序列</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/1706.06978">DIN</a></li>
+<li><a href="https://arxiv.org/abs/1809.03672">DIEN</a></li>
+<li><a href="https://arxiv.org/abs/1905.06482">DSIN</a></li>
+<li><a href="https://arxiv.org/abs/1905.06874">BST</a></li>
+<li><a href="https://arxiv.org/abs/2006.05639">SIM</a></li>
+<li><a href="https://arxiv.org/abs/2302.02352">TWIN</a></li>
+<li><a href="https://arxiv.org/abs/2505.04421">LONGER</a></li>
+<li><a href="https://arxiv.org/abs/2402.17152">HSTU</a></li>
+<li><a href="https://arxiv.org/abs/2601.12681">HyFormer</a></li>
+<li><a href="https://github.com/Rongfeng-Guo/Rank51-TAAC2026-KDDCUP">Rank51-TAAC2026-KDDCUP 开源方案</a></li>
+</ul>
+<h3>多任务与生成式推荐</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/1804.07931">ESMM</a></li>
+<li><a href="https://arxiv.org/abs/1910.07099">ESM2</a></li>
+<li><a href="https://arxiv.org/abs/2204.05125">ESCM2</a></li>
+<li><a href="https://research.google/pubs/modeling-task-relationships-in-multi-task-learning-with-multi-gate-mixture-of-experts/">MMoE</a></li>
+<li><a href="https://dl.acm.org/doi/10.1145/3383313.3412236">PLE</a></li>
+<li><a href="https://arxiv.org/abs/2305.05065">TIGER / Generative Retrieval</a></li>
+<li><a href="https://arxiv.org/abs/2502.18965">OneRec</a></li>
+<li><a href="https://arxiv.org/abs/2606.06260">OneReason Technical Report</a></li>
+<li><a href="https://arxiv.org/abs/2604.04976">Tencent 广告全模态生成式推荐数据与竞赛论文</a></li>
+</ul>
+<div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
