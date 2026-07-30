@@ -146,21 +146,29 @@ if (!reducedMotion) {
   sakura.className = 'sakura-layer';
   sakura.setAttribute('aria-hidden', 'true');
   [
-    ['7%', '15s', '-5s', '.72'],
-    ['18%', '19s', '-13s', '.48'],
-    ['34%', '17s', '-8s', '.62'],
-    ['49%', '22s', '-18s', '.44'],
-    ['63%', '16s', '-11s', '.7'],
-    ['75%', '21s', '-4s', '.52'],
-    ['88%', '18s', '-15s', '.58'],
-    ['96%', '24s', '-9s', '.4'],
-  ].forEach(([left, duration, delay, opacity], index) => {
+    ['3%', '18s', '-12s', '.38', '7px', '-1.25', '.2px'],
+    ['9%', '15s', '-5s', '.72', '10px', '1', '0px'],
+    ['17%', '23s', '-19s', '.35', '13px', '-.7', '.7px'],
+    ['24%', '19s', '-13s', '.5', '8px', '-1', '.1px'],
+    ['33%', '17s', '-8s', '.64', '11px', '1.2', '0px'],
+    ['41%', '26s', '-22s', '.3', '15px', '.6', '1px'],
+    ['49%', '22s', '-18s', '.46', '9px', '-1.15', '.2px'],
+    ['57%', '20s', '-7s', '.42', '8px', '.85', '.4px'],
+    ['64%', '16s', '-11s', '.7', '10px', '1.1', '0px'],
+    ['71%', '24s', '-20s', '.33', '14px', '-.65', '.9px'],
+    ['77%', '21s', '-4s', '.54', '9px', '-1', '.1px'],
+    ['85%', '17s', '-9s', '.62', '11px', '1.25', '0px'],
+    ['91%', '19s', '-15s', '.48', '8px', '-.9', '.3px'],
+    ['97%', '25s', '-17s', '.32', '13px', '.7', '.8px'],
+  ].forEach(([left, duration, delay, opacity, size, drift, blur]) => {
     const petal = document.createElement('i');
     petal.style.setProperty('--petal-left', left);
     petal.style.setProperty('--petal-duration', duration);
     petal.style.setProperty('--petal-delay', delay);
     petal.style.setProperty('--petal-opacity', opacity);
-    petal.style.setProperty('--petal-drift', `${index % 2 ? -1 : 1}`);
+    petal.style.setProperty('--petal-size', size);
+    petal.style.setProperty('--petal-drift', `${Number(drift) * 100}px`);
+    petal.style.setProperty('--petal-blur', blur);
     sakura.append(petal);
   });
   document.body.append(sakura);
@@ -175,7 +183,7 @@ if (matchMedia('(pointer: fine)').matches && !reducedMotion) {
   cursor.textContent = '✦';
   document.body.append(cursor);
 
-  const interactiveSelector = 'a, button, input, .post-card, .archive-item, .research-card';
+  const interactiveSelector = 'a, button, input, .post-card, .archive-item, .research-card, .experience-card, .profile-note';
   const trailGlyphs = ['✦', '·', '✧'];
   const trailColors = ['#ef7186', '#3ca9bd', '#f1ad56'];
   let lastTrailAt = 0;
