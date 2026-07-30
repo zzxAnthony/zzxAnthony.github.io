@@ -63,7 +63,8 @@ const backToTop = document.createElement('button');
 backToTop.className = 'back-to-top';
 backToTop.type = 'button';
 backToTop.setAttribute('aria-label', '返回顶部');
-backToTop.textContent = '↑';
+const assetPrefix = location.pathname.includes('/posts/') ? '../assets/' : 'assets/';
+backToTop.innerHTML = `<img src="${assetPrefix}taichi.svg" alt="">`;
 document.body.append(backToTop);
 const updateBackToTop = () => backToTop.classList.toggle('visible', scrollY > 600);
 addEventListener('scroll', updateBackToTop, { passive: true });
@@ -100,6 +101,14 @@ if (articleBody?.querySelector('.math-inline, .math-display')) {
       displayMath: [['\\[', '\\]'], ['$$', '$$']],
       processEscapes: true,
     },
+    output: {
+      displayOverflow: 'linebreak',
+      linebreaks: {
+        inline: true,
+        width: '100%',
+        lineleading: 0.18,
+      },
+    },
     options: {
       skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
     },
@@ -109,4 +118,29 @@ if (articleBody?.querySelector('.math-inline, .math-display')) {
   mathScript.defer = true;
   mathScript.src = 'https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js';
   document.head.append(mathScript);
+}
+
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const sakura = document.createElement('div');
+  sakura.className = 'sakura-layer';
+  sakura.setAttribute('aria-hidden', 'true');
+  [
+    ['7%', '15s', '-5s', '.72'],
+    ['18%', '19s', '-13s', '.48'],
+    ['34%', '17s', '-8s', '.62'],
+    ['49%', '22s', '-18s', '.44'],
+    ['63%', '16s', '-11s', '.7'],
+    ['75%', '21s', '-4s', '.52'],
+    ['88%', '18s', '-15s', '.58'],
+    ['96%', '24s', '-9s', '.4'],
+  ].forEach(([left, duration, delay, opacity], index) => {
+    const petal = document.createElement('i');
+    petal.style.setProperty('--petal-left', left);
+    petal.style.setProperty('--petal-duration', duration);
+    petal.style.setProperty('--petal-delay', delay);
+    petal.style.setProperty('--petal-opacity', opacity);
+    petal.style.setProperty('--petal-drift', `${index % 2 ? -1 : 1}`);
+    sakura.append(petal);
+  });
+  document.body.append(sakura);
 }
