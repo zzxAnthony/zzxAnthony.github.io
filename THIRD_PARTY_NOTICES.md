@@ -18,7 +18,7 @@ This site uses or adapts the following third-party resources.
 
 - Source: https://github.com/D-Sketon/hexo-theme-reimu
 - License: MIT (full text in `licenses/hexo-theme-reimu-MIT.txt`)
-- Use: the theme's bundled banner, example avatar, and Reimu character asset are used as local article-cover material; the theme also informed restrained animation and card-layout details.
+- Use: the theme's bundled banner and example avatar are used as local article-cover material; the theme also informed restrained animation and card-layout details.
 
 ## Hexo Theme Butterfly
 
@@ -32,5 +32,6 @@ This site uses or adapts the following third-party resources.
 - Southwest Petroleum University identity system: https://www.swpu.edu.cn/sdwh/bsxt.htm
 - Meituan official media resources: https://www.meituan.com/media
 - Baidu official brand identity system: https://bdvi.honglei.net/
+- Lecheng Software Studio logo: supplied by the site owner.
 
 The institutional marks are shown only to identify the author's education and internship experience. They are not used to imply endorsement.
