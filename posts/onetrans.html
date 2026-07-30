@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="背景 关于推荐系统精排： 在工业级推荐系统中，排序模型承担着从数百个候选物品中选出用户最可能点击或购买的那一个的重任。近年来，深度学习推荐模型的演进主要沿着两条独立的轨道进行。排序模型通常分为两个独立模块： 序列建模模块：建模用户的历史行为…">
-  <meta name="author" content="zzx">
-  <title>OneTrans：推荐系统统一序列处理与特征交叉 — zzx</title>
+  <meta name="author" content="克西">
+  <title>OneTrans：推荐系统统一序列处理与特征交叉 — 克西</title>
   <link rel="icon" href="../assets/favicon.png" type="image/png">
   <link rel="stylesheet" href="../assets/styles.css">
   <script src="../assets/app.js" defer></script>
 </head>
 <body>
   <div class="reading-progress"></div>
-  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <header class="topbar"><a class="wordmark" href="../">克西<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
   <main class="article-shell">
     <a class="article-back" href="../writing.html">← 返回文章</a>
     <article>
@@ -20,13 +20,13 @@
         <p class="eyebrow">TECHNICAL NOTE / 推荐系统</p>
         <h1>OneTrans：推荐系统统一序列处理与特征交叉</h1>
         <p class="lead">讨论推荐系统中序列建模与特征交互模块的统一设计及工业扩展方式。</p>
-        <div class="article-meta"><span>推荐系统</span><span>zzx</span><time datetime="2026-03-12">2026.03.12</time><span>4 MIN READ</span></div>
+        <div class="article-meta"><span>推荐系统</span><span>克西</span><time datetime="2026-03-12">2026.03.12</time><span>4 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2015216830684361764" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
       <div class="article-body"><h3>背景</h3><p><br>关于推荐系统精排：<br>       在工业级推荐系统中，排序模型承担着从数百个候选物品中选出用户最可能点击或购买的那一个的重任。近年来，深度学习推荐模型的演进主要沿着两条独立的轨道进行。</p><ul><li>排序模型通常分为两个独立模块：<br></li><ul><li>序列建模模块：建模用户的历史行为序列（如点击、购买）。</li><li>特征交互模块：建模非序列特征（如用户画像、物品属性、上下文）之间的高阶交互。</li></ul></ul><p>        传统做法是先用一个序列模型（如DIN、Transformer）将用户行为序列压缩成一个固定长度的向量，然后与其它非序列特征拼接，再送入特征交互模块（如DeepFM、DCN）进行最终预测。<br>传统方法局限：</p><ol><li>信息流受限：序列特征和非序列特征之间的交互被延迟到后期，无法实现双向信息融合。</li><li>系统优化困难：两个模块独立训练和推理，无法统一优化和扩展，难以复用大模型的高效优化技术</li></ol><p>序列建模<br>用户的行为序列（如最近点击的100个商品）包含了丰富的兴趣信号。早期的模型如DIN（Deep Interest Network）通过目标注意力机制，让候选物品主动去“关注”历史行为中与之相关的部分，生成一个与候选相关的兴趣向量。后来的Transformer-based方法（如BST、SASRec</p></div>
       <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
-  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>
 </body>
 </html>

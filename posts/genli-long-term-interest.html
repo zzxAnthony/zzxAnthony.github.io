@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="0. 写在前面这篇论文讨论的是 CTR 预估里的长期用户兴趣建模。它的关键词看起来很新：“Generative Long-term User Interest Modeling”，但它并不是用大语言模型生成推荐结果，也不是直接生成 item ID。它真正做的事情是： 用用户近期行为生成几个离散的兴…">
-  <meta name="author" content="zzx">
-  <title>GenLI:长序列用户兴趣建模 — zzx</title>
+  <meta name="author" content="克西">
+  <title>GenLI:长序列用户兴趣建模 — 克西</title>
   <link rel="icon" href="../assets/favicon.png" type="image/png">
   <link rel="stylesheet" href="../assets/styles.css">
   <script src="../assets/app.js" defer></script>
 </head>
 <body>
   <div class="reading-progress"></div>
-  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <header class="topbar"><a class="wordmark" href="../">克西<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
   <main class="article-shell">
     <a class="article-back" href="../writing.html">← 返回文章</a>
     <article>
@@ -20,13 +20,13 @@
         <p class="eyebrow">TECHNICAL NOTE / 序列建模</p>
         <h1>GenLI:长序列用户兴趣建模</h1>
         <p class="lead">分析生成式长期兴趣表示、历史行为检索与目标物品融合的计算路径。</p>
-        <div class="article-meta"><span>序列建模</span><span>zzx</span><time datetime="2026-05-26">2026.05.26</time><span>4 MIN READ</span></div>
+        <div class="article-meta"><span>序列建模</span><span>克西</span><time datetime="2026-05-26">2026.05.26</time><span>4 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2042617735583200218" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
       <div class="article-body"><h3>0. 写在前面</h3><p>这篇论文讨论的是 CTR 预估里的长期用户兴趣建模。它的关键词看起来很新：“Generative Long-term User Interest Modeling”，但它并不是用大语言模型生成推荐结果，也不是直接生成 item ID。它真正做的事情是：</p><blockquote> 用用户近期行为生成几个离散的兴趣分布，然后用这些分布去长期历史行为里查表召回，最后再和目标 item 做精排式融合。</blockquote><p>如果把传统长序列 CTR 方法理解成“拿目标 item 去历史行为里找相似行为”，那么 GenLI 的思路就是“先根据用户近期状态生成兴趣雷达图，再用这个雷达图去长历史里挑有代表性的行为”。</p><p>这篇论文最值得关注的不是某个复杂网络结构，而是它重新组织了长序列建模的计算路径。传统方法把检索中心放在 target item 上，GenLI 把检索中心先放回用户自己身上。</p><h3>1. 背景：CTR 预估为什么需要长序列兴趣建模</h3><p>CTR 预估要判断用户是否会点击某个候选 item。输入通常包括用户特征、目标 item 特征、上下文特征，以及用户历史行为。历史行为非常关键，因为它承载了用户偏好，代表了用户在一定时间的兴趣。</p><p>用户兴趣可以</p></div>
       <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
-  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>
 </body>
 </html>

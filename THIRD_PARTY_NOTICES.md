@@ -2,6 +2,12 @@
 
 This site uses or adapts the following third-party resources.
 
+## Smiley Sans / 得意黑
+
+- Source: https://github.com/atelier-anchor/smiley-sans
+- License: SIL Open Font License 1.1 (full text in `licenses/smiley-sans-OFL-1.1.txt`)
+- Use: self-hosted WOFF2 font for large display headings. Body text uses the system Chinese sans-serif stack.
+
 ## Fuwari
 
 - Source: https://github.com/saicaca/fuwari
@@ -12,9 +18,7 @@ This site uses or adapts the following third-party resources.
 
 - Source: https://github.com/D-Sketon/hexo-theme-reimu
 - License: MIT (full text in `licenses/hexo-theme-reimu-MIT.txt`)
-- Use: design reference for alternating article-card composition, sidebar widget treatment, and subtle transition ideas. No artwork from the theme is included.
-
-Character artwork, cursors, and banner images from the theme are **not** included in this site.
+- Use: the theme's bundled banner, example avatar, and Reimu character asset are used as local article-cover material; the theme also informed restrained animation and card-layout details.
 
 ## Hexo Theme Butterfly
 
@@ -24,8 +28,7 @@ Character artwork, cursors, and banner images from the theme are **not** include
 
 ## Organization marks
 
-- Beihang University visual identity: https://xcb.buaa.edu.cn/vixt.htm
-- Beihang mark file source used for this non-commercial academic profile: https://github.com/Lyrics2196/BUAA-Slide
+- Beihang University emblem and visual identity: https://www.buaa.edu.cn/xygk/jrbh0116old/bhxh.htm
 - Southwest Petroleum University identity system: https://www.swpu.edu.cn/sdwh/bsxt.htm
 - Meituan official media resources: https://www.meituan.com/media
 - Baidu official brand identity system: https://bdvi.honglei.net/
