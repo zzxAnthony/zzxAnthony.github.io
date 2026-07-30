@@ -1,5 +1,5 @@
 const root = document.documentElement;
-const savedTheme = localStorage.getItem('zzx-theme');
+const savedTheme = localStorage.getItem('kexi-theme');
 root.dataset.theme = savedTheme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
 const pageIsPost = location.pathname.includes('/posts/');
@@ -38,7 +38,7 @@ document.querySelectorAll('.wordmark').forEach((wordmark) => {
 
 document.querySelector('.theme-toggle')?.addEventListener('click', () => {
   root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
-  localStorage.setItem('zzx-theme', root.dataset.theme);
+  localStorage.setItem('kexi-theme', root.dataset.theme);
 });
 
 document.querySelector('#year')?.replaceChildren(String(new Date().getFullYear()));
@@ -78,20 +78,6 @@ filterButtons.forEach((button) => {
 
 searchInput?.addEventListener('input', filterArticles);
 filterArticles();
-
-const revealItems = [...document.querySelectorAll('.reveal')];
-if ('IntersectionObserver' in window) {
-  const revealObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      entry.target.classList.add('is-visible');
-      observer.unobserve(entry.target);
-    });
-  }, { threshold: 0.08 });
-  revealItems.forEach((item) => revealObserver.observe(item));
-} else {
-  revealItems.forEach((item) => item.classList.add('is-visible'));
-}
 
 const backToTop = document.createElement('button');
 backToTop.className = 'back-to-top';
@@ -180,39 +166,65 @@ if (!reducedMotion) {
   document.body.append(sakura);
 }
 
-// Fine-pointer interactions: a soft cursor halo, click burst and restrained
-// magnetic movement. They are disabled for touch devices and reduced motion.
+// Fine-pointer interactions: an anime-inspired star trail, concentric click
+// ripples and restrained magnetic movement. Native cursor behavior is preserved.
 if (matchMedia('(pointer: fine)').matches && !reducedMotion) {
   const cursor = document.createElement('span');
-  cursor.className = 'cursor-glow';
+  cursor.className = 'cursor-star';
   cursor.setAttribute('aria-hidden', 'true');
+  cursor.textContent = '✦';
   document.body.append(cursor);
 
   const interactiveSelector = 'a, button, input, .post-card, .archive-item, .research-card';
+  const trailGlyphs = ['✦', '·', '✧'];
+  const trailColors = ['#ef7186', '#3ca9bd', '#f1ad56'];
+  let lastTrailAt = 0;
+  let lastTrailX = 0;
+  let lastTrailY = 0;
   addEventListener('pointermove', (event) => {
     cursor.style.left = `${event.clientX}px`;
     cursor.style.top = `${event.clientY}px`;
     cursor.classList.toggle('is-active', Boolean(event.target.closest?.(interactiveSelector)));
+
+    const now = performance.now();
+    const distance = Math.hypot(event.clientX - lastTrailX, event.clientY - lastTrailY);
+    if (now - lastTrailAt < 34 || distance < 20) return;
+    lastTrailAt = now;
+    lastTrailX = event.clientX;
+    lastTrailY = event.clientY;
+    const trail = document.createElement('i');
+    const index = Math.floor(Math.random() * trailGlyphs.length);
+    trail.className = 'cursor-trail';
+    trail.textContent = trailGlyphs[index];
+    trail.style.left = `${event.clientX}px`;
+    trail.style.top = `${event.clientY}px`;
+    trail.style.setProperty('--trail-color', trailColors[index]);
+    trail.style.setProperty('--trail-size', `${7 + Math.random() * 6}px`);
+    trail.style.setProperty('--trail-x', `${-8 + Math.random() * 16}px`);
+    trail.style.setProperty('--trail-y', `${11 + Math.random() * 12}px`);
+    trail.addEventListener('animationend', () => trail.remove(), { once: true });
+    document.body.append(trail);
   }, { passive: true });
   addEventListener('pointerleave', () => { cursor.style.opacity = '0'; });
   addEventListener('pointerenter', () => { cursor.style.opacity = '1'; });
 
-  const sparkColors = ['#ef7186', '#7b6ce8', '#3ca9bd', '#f1ad56'];
   addEventListener('click', (event) => {
     if (event.button !== 0) return;
-    for (let index = 0; index < 8; index += 1) {
-      const spark = document.createElement('i');
-      const angle = (Math.PI * 2 * index) / 8 + Math.random() * 0.18;
-      const distance = 25 + Math.random() * 20;
-      spark.className = 'click-spark';
-      spark.style.left = `${event.clientX - 4}px`;
-      spark.style.top = `${event.clientY - 4}px`;
-      spark.style.setProperty('--spark-x', `${Math.cos(angle) * distance}px`);
-      spark.style.setProperty('--spark-y', `${Math.sin(angle) * distance}px`);
-      spark.style.setProperty('--spark-color', sparkColors[index % sparkColors.length]);
-      spark.addEventListener('animationend', () => spark.remove(), { once: true });
-      document.body.append(spark);
-    }
+    ['primary', 'secondary'].forEach((variant) => {
+      const ripple = document.createElement('i');
+      ripple.className = `click-ripple ${variant}`;
+      ripple.style.left = `${event.clientX}px`;
+      ripple.style.top = `${event.clientY}px`;
+      ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
+      document.body.append(ripple);
+    });
+    const star = document.createElement('i');
+    star.className = 'click-star';
+    star.textContent = '✦';
+    star.style.left = `${event.clientX}px`;
+    star.style.top = `${event.clientY}px`;
+    star.addEventListener('animationend', () => star.remove(), { once: true });
+    document.body.append(star);
   });
 
   document.querySelectorAll('.magnetic').forEach((element) => {
