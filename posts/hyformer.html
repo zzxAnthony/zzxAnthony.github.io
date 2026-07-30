@@ -6,20 +6,20 @@
   <meta name="description" content="一、背景 在HyFormer之前，工业推荐模型的主流范式可以概括为：原始特征 → 序列建模（压缩）→ 特征交互（融合）→ 输出 其中序列建模的代表有 LONGER（通过交叉注意力压缩长序列）、SIM（搜索兴趣网络）等；特征交互的代表有 RankMixer（基于MLP-Mixer的T…">
   <meta name="author" content="zzx">
   <title>HyFormer:统一序列建模与特征交叉 — zzx</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="../assets/favicon.png" type="image/png">
   <link rel="stylesheet" href="../assets/styles.css">
   <script src="../assets/app.js" defer></script>
 </head>
 <body>
   <div class="reading-progress"></div>
-  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
   <main class="article-shell">
     <a class="article-back" href="../writing.html">← 返回文章</a>
     <article>
       <header class="article-header">
-        <p class="eyebrow">WRITING / 推荐系统</p>
+        <p class="eyebrow">TECHNICAL NOTE / 推荐系统</p>
         <h1>HyFormer:统一序列建模与特征交叉</h1>
-        <p class="lead">一、背景 在HyFormer之前，工业推荐模型的主流范式可以概括为：原始特征 → 序列建模（压缩）→ 特征交互（融合）→ 输出 其中序列建模的代表有 LONGER（通过交叉注意力压缩长序列）、SIM（搜索兴趣网络）等；特征交互的代表有 RankMixer（基于MLP-Mixer的T…</p>
+        <p class="lead">分析序列信息与非序列特征在统一 Transformer 架构中的双向交互。</p>
         <div class="article-meta"><span>推荐系统</span><span>zzx</span><time datetime="2026-03-15">2026.03.15</time><span>4 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2016465848190116619" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
@@ -27,6 +27,6 @@
       <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
-  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
 </body>
 </html>
