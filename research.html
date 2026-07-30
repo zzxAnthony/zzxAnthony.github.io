@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="zzx 的研究方向：生成式推荐与具身智能。">
+  <title>研究方向 — zzx</title>
+  <link rel="icon" href="assets/favicon.png" type="image/png">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="assets/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="topbar">
+    <a class="wordmark" href="./"><span class="wordmark-spark">✦</span>zzx<span>.</span></a>
+    <nav aria-label="主导航"><a href="./">首页</a><a href="writing.html">文章</a><a href="research.html" aria-current="page">研究</a><a href="publications.html">论文</a><a href="about.html">履历</a></nav>
+    <div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div>
+  </header>
+
+  <main id="content" class="wrap research-page">
+    <header class="research-hero shell-card reveal">
+      <div class="research-hero-copy"><span class="eyebrow">RESEARCH MAP / 研究方向</span><h1>生成式推荐<br><i>×</i> 具身智能</h1><p>围绕生成建模、用户意图表示与真实环境决策，持续整理研究问题、技术路线和论文笔记。</p><div class="hero-actions"><a class="button primary magnetic" href="#generative">生成式推荐</a><a class="button secondary magnetic" href="#embodied">具身智能</a></div></div>
+      <figure><img src="assets/covers/anime-city.jpg" alt="日系城市插画研究背景"><figcaption>RESEARCH FIELD NOTES · 2026</figcaption></figure>
+      <img class="anime-sticker" src="assets/covers/anime-sticker.png" alt="星空动漫风装饰插画">
+    </header>
+
+    <section class="research-track reveal" id="generative">
+      <header class="feed-heading"><div><span class="section-kicker">AREA 01</span><h2>生成式推荐</h2></div><a href="writing.html?tag=generative">相关文章 →</a></header>
+      <div class="research-detail-grid">
+        <article class="research-overview shell-card"><span class="field-number">01</span><h3>Generative Recommendation</h3><p>关注推荐系统从判别式打分向生成式建模演进的关键问题，包括离散物品表示、生成式召回与排序，以及推荐内容生成。</p><div class="interest-list"><span>Semantic ID</span><span>Generative Retrieval</span><span>Generative Ranking</span><span>Content Generation</span></div></article>
+        <div class="question-stack">
+          <article class="question-card shell-card"><span>Q1</span><div><h3>表示</h3><p>如何构建面向推荐目标的离散物品表示，并保持语义、协同信号与生成效率之间的平衡？</p></div></article>
+          <article class="question-card shell-card"><span>Q2</span><div><h3>生成</h3><p>如何统一候选检索、排序与内容生成，使生成结果同时满足用户意图与平台约束？</p></div></article>
+          <article class="question-card shell-card"><span>Q3</span><div><h3>系统</h3><p>如何将生成模型部署到大规模推荐链路，并控制时延、吞吐与线上稳定性？</p></div></article>
+        </div>
+      </div>
+      <div class="reading-shelf shell-card"><span>SELECTED NOTES</span><a href="posts/recommendation-as-generation.html"><b>Recommendation as Generation</b><small>内容生成</small></a><a href="posts/resid-semantic-id.html"><b>ReSID</b><small>Semantic ID</small></a><a href="posts/mtgr-generative-recommendation.html"><b>MTGR</b><small>工业框架</small></a></div>
+    </section>
+
+    <section class="research-track reveal" id="embodied">
+      <header class="feed-heading"><div><span class="section-kicker">AREA 02</span><h2>具身智能</h2></div></header>
+      <div class="research-detail-grid reverse">
+        <article class="research-overview shell-card embodied-card"><span class="field-number">02</span><h3>Embodied Intelligence</h3><p>关注智能体在真实环境中的感知、理解、决策与行动，重点梳理视觉语言动作模型、机器人学习与闭环交互。</p><div class="interest-list"><span>VLM / VLA</span><span>Robot Learning</span><span>World Model</span><span>Closed-loop Decision</span></div></article>
+        <div class="question-stack">
+          <article class="question-card shell-card"><span>E1</span><div><h3>感知与理解</h3><p>如何将多模态观察转化为稳定、可泛化的环境与任务表示？</p></div></article>
+          <article class="question-card shell-card"><span>E2</span><div><h3>决策与行动</h3><p>如何连接语言层面的任务意图与连续控制空间中的动作生成？</p></div></article>
+          <article class="question-card shell-card"><span>E3</span><div><h3>真实环境</h3><p>如何在分布偏移、安全约束与有限数据条件下实现可靠的闭环学习？</p></div></article>
+        </div>
+      </div>
+      <div class="research-status shell-card"><span>STATUS</span><strong>研究资料整理中</strong><p>后续将补充具身智能研究地图、论文笔记与阶段性技术总结。</p></div>
+    </section>
+
+    <section class="method-note shell-card reveal"><span class="section-kicker">WORKING METHOD</span><h2>研究记录方式</h2><div><p><b>问题定义</b><br>明确任务边界、评价指标与系统约束。</p><p><b>方法拆解</b><br>梳理模型结构、数学表达与训练目标。</p><p><b>工程分析</b><br>讨论计算复杂度、部署路径与潜在局限。</p></div></section>
+  </main>
+
+  <footer class="site-footer wrap"><div><a class="wordmark" href="./"><span class="wordmark-spark">✦</span>zzx<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="writing.html">文章</a><a href="research.html">研究</a><a href="publications.html">论文</a><a href="about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>
