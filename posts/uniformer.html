@@ -1,10 +1,36 @@
-<!doctype html><html lang="zh-CN" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="快手 UniFormer 论文精读：从组件扩容到特征空间与任务空间统一扩容。"><title>UniFormer：统一模型扩容 — ZZX.LOG</title><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/styles.css"><script src="../assets/app.js" defer></script></head><body><div class="reading-progress"></div><header class="site-header"><a class="brand" href="../"><span class="brand-mark">Z</span><span>ZZX.LOG</span><i></i></a><nav><a href="../#writing">文章</a><a href="../#about">关于</a><a href="../#stack">技术栈</a></nav><div class="header-actions"><a class="github-link" href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 .7A11.5 11.5 0 0 0 8.36 23.1c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.37-3.9-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.78 1.2 1.78 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.57-.29-5.28-1.29-5.28-5.68 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.16 1.18a10.93 10.93 0 0 1 5.76 0c2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.23 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.4-2.71 5.38-5.29 5.67.42.36.78 1.06.78 2.14v3.18c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg></a><button class="theme-toggle" aria-label="切换主题"><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg><svg class="moon" viewBox="0 0 24 24"><path d="M20.4 15.5A8.5 8.5 0 0 1 8.5 3.6a8.5 8.5 0 1 0 11.9 11.9Z"/></svg></button></div></header><main class="article-shell"><a class="article-back" href="../#writing">← BACK TO WRITING</a><article><header class="article-header"><p class="eyebrow">PAPER / RECOMMENDER SYSTEMS</p><h1>UniFormer：从组件扩容到统一模型扩容</h1><p class="lead">推荐模型真正的扩容，不只是把某个 Transformer 堆得更深，而是重新组织 feature space 与 task space。</p><div class="article-meta"><span>论文精读</span><time datetime="2026-07-28">2026.07.28</time><span>12 MIN READ</span></div></header><div class="article-body">
-<h2>问题：组件级扩容为什么不够？</h2><p>工业精排模型通常由行为序列建模、非序列特征交叉和多任务预估组成。过去的扩容大多发生在某一个模块：序列侧加长历史，交叉侧增加层数，多任务侧增加 expert。但系统的真实建模空间并不是这些模块的简单拼接。</p><pre>Embedding / Tokenization
-→ Sequence Modeling
-→ Feature Interaction
-→ Multi-task Learning
-→ Prediction Heads</pre><p>只扩一个组件会让容量分配失衡。更关键的是，很多联合模型只统一了 feature space，点击、时长、点赞等任务仍然停留在末端 tower 中。</p>
-<h2>核心：两阶段统一交互</h2><p>UniFormer 的关键判断是：先让序列行为与非序列特征在 feature space 中充分融合，再让 task token 主动读取高阶特征，并显式建模任务关系。</p><blockquote>把工业推荐排序从 component-centric scaling 推向 model-centric co-scaling，并把 task space 作为一等公民。</blockquote><p>这让任务不再只是被动接收共享表示的输出头，而成为统一交互空间里的查询者。模型容量也因此能在特征理解与目标区分之间更自然地流动。</p>
-<h2>工程上的三个启示</h2><ol><li><strong>先定义扩容坐标。</strong> 参数量不是唯一尺度，应分别观察序列、特征和任务三个维度的瓶颈。</li><li><strong>任务冲突需要结构化处理。</strong> 共享底座越强，越需要让任务保留独立读取与交互的能力。</li><li><strong>统一不等于完全共享。</strong> 合理的 token 设计和交互边界，往往比简单堆叠层数更重要。</li></ol>
-<h2>我的判断</h2><p>UniFormer 最值得关注的不是某个局部模块，而是它重新定义了推荐模型“应该在哪里扩容”。当序列长度、特征数量和业务目标都继续增长时，统一空间中的容量协同会比单点放大更重要。</p>
-</div><div class="article-end"><p>继续阅读：生成式推荐如何跨出内容池？</p><a class="button ghost" href="recommendation-as-generation.html">NEXT ARTICLE <span>→</span></a></div></article></main><footer><a class="brand" href="../"><span class="brand-mark">Z</span><span>ZZX.LOG</span></a><p>© <span id="year">2026</span> ZZX</p><a href="#">BACK TO TOP ↑</a></footer></body></html>
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="1. 这篇论文在解决什么问题UniFormer 讨论的是工业推荐排序模型的一个很现实的问题： 推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。传统工业精排模型通常可以拆成几块： Embedding / Tokenization -&gt; 用户行为序…">
+  <meta name="author" content="zzx">
+  <title>快手 UniFormer ：从组件扩容到特征空间与任务空间统一扩容 — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 推荐系统</p>
+        <h1>快手 UniFormer ：从组件扩容到特征空间与任务空间统一扩容</h1>
+        <p class="lead">1. 这篇论文在解决什么问题UniFormer 讨论的是工业推荐排序模型的一个很现实的问题： 推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。传统工业精排模型通常可以拆成几块： Embedding / Tokenization -&gt; 用户行为序…</p>
+        <div class="article-meta"><span>推荐系统</span><span>zzx</span><time datetime="2026-07-26">2026.07.26</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2064668953616691365" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><h2>1. 这篇论文在解决什么问题</h2><p>UniFormer 讨论的是工业推荐排序模型的一个很现实的问题：<b>推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。</b></p><p>传统工业精排模型通常可以拆成几块：</p><div><pre><code class="language-text">Embedding / Tokenization
+-&gt; 用户行为序列建模
+-&gt; 非序列特征交叉
+-&gt; 多任务建模
+-&gt; 多目标预估输出</code></pre></div><p>过去几年，业界对这些模块分别做过扩容：</p><ol><li>行为序列建模扩容：DIN、DIEN、SIM、C-Former、LONGER 等，重点是把用户历史行为建模得更细。</li><li>特征交叉扩容：DCN、RankMixer、Transformer-style token mixing 等，重点是加强 feature interaction。</li><li>多任务建模扩容：MMoE、PLE、HoME、MoE-style task experts 等，重点是处理点击、时长、点赞、关注等目标之间的共享与冲突。</li></ol><p>这些方法都有效，但它们大多还是在“某个组件”里加容量。UniFormer 的核心判断是：当模型继续变大时，只扩一个组件会遇到瓶颈，因为推荐排序的真实建模空间不是单一模块，而是：</p><div><pre><code class="language-text">序列行为 + 非序列</code></pre></div></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>

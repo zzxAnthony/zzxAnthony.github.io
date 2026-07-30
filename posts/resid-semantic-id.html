@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="1. 语义ID现状生成式推荐近几年有一条很重要的路线：不再把推荐看成“从海量 item ID 中打分检索”，而是把每个物品编码成一串离散 token，也就是 Semantic ID，简称 SID。模型预测下一个物品时，不直接输出 item ID，而是像语言模型一样逐 token 生成一个 …">
+  <meta name="author" content="zzx">
+  <title>ReSID：从推荐系统视角重新设计语义ID — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 生成式推荐</p>
+        <h1>ReSID：从推荐系统视角重新设计语义ID</h1>
+        <p class="lead">1. 语义ID现状生成式推荐近几年有一条很重要的路线：不再把推荐看成“从海量 item ID 中打分检索”，而是把每个物品编码成一串离散 token，也就是 Semantic ID，简称 SID。模型预测下一个物品时，不直接输出 item ID，而是像语言模型一样逐 token 生成一个 …</p>
+        <div class="article-meta"><span>生成式推荐</span><span>zzx</span><time datetime="2026-07-10">2026.07.10</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2059032884653118962" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><h3>1. 语义ID现状</h3><p>生成式推荐近几年有一条很重要的路线：不再把推荐看成“从海量 item ID 中打分检索”，而是把每个物品编码成一串离散 token，也就是 Semantic ID，简称 SID。模型预测下一个物品时，不直接输出 item ID，而是像语言模型一样逐 token 生成一个 SID。</p><p>例如一个物品可以被编码为：</p><div><pre><code class="language-text">[21, 3, 54]</code></pre></div><p>这样做有两个好处：</p><ol><li>item 空间被压缩成多级 token 空间，可以减少超大 item 表的压力。</li><li>推荐问题转变成序列生成问题，可以使用自回归解码、beam search 等生成式建模方法。</li></ol><p>但 ReSID 指出了已有 SID 方案的一个根本问题：<b>大多数方法把 SID tokenizer 当成语义压缩器，而不是推荐系统原生的预测接口</b>。</p><p>典型流程是：</p><div><pre><code class="language-text">物品文本/图片
+-&gt; LLM 或多模态模型提取语义 embedding
+-&gt; RQ-VAE / RQ-KMeans / Hierarchical KMeans 离散化
+-&gt; 生成式推荐模型预测 SID</code></pre></div><p>这个流程看起来合理，但它隐含了一个假设：语义相似的物品在推荐中也应该相近。但很多时候这个假设并不成立。</p><p>比如“零</p></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>

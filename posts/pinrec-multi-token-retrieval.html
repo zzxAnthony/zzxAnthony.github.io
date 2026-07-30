@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="0. 写在前面OneRec 的核心问题是： 生成式模型能不能统一召回和排序，直接生成推荐 session？而PinRec 的问题更工程化： 生成式召回能不能在 Pinterest 这种超大规模平台里稳定服务， 同时支持多业务目标、候选多样性和低延迟？值得注意的是： PinRec 没有…">
+  <meta name="author" content="zzx">
+  <title>PinRec：多token生成式检索 — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 生成式推荐</p>
+        <h1>PinRec：多token生成式检索</h1>
+        <p class="lead">0. 写在前面OneRec 的核心问题是： 生成式模型能不能统一召回和排序，直接生成推荐 session？而PinRec 的问题更工程化： 生成式召回能不能在 Pinterest 这种超大规模平台里稳定服务， 同时支持多业务目标、候选多样性和低延迟？值得注意的是： PinRec 没有…</p>
+        <div class="article-meta"><span>生成式推荐</span><span>zzx</span><time datetime="2026-05-28">2026.05.28</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2043321725606262314" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><h2>0. 写在前面</h2><p>OneRec 的核心问题是：</p><div><pre><code class="language-text">生成式模型能不能统一召回和排序，直接生成推荐 session？</code></pre></div><p>而PinRec 的问题更工程化：</p><div><pre><code class="language-text">生成式召回能不能在 Pinterest 这种超大规模平台里稳定服务，
+同时支持多业务目标、候选多样性和低延迟？</code></pre></div><p>值得注意的是：<b>PinRec 没有走 semantic ID 自回归生成路线</b>。它不是让模型生成 <img src="https://www.zhihu.com/equation?tex=%3Ca_9%3E%3Cb_1%3E%3Cc_5%3E" alt="&lt;a_9&gt;&lt;b_1&gt;&lt;c_5&gt;" loading="lazy">  这样的离散 item code，而是让 transformer 根据用户历史生成多个 <b>dense item embedding</b>，然后用 ANN/Faiss 去召回真实 Pins。</p><p>所以 PinRec 更像是：</p><div><pre><code class="language-text">用户行为序列 -&gt; transformer 生成多个未来兴趣向量 -&gt; ANN 检索 Pins -&gt; 下游排序/融合</code></pre></div><p>PinRec 在 Pinterest Homefeed、Search、Related Pins 三个主要场景上线，带来显著线上收益，Homefeed 中 PinRec-{MT, OC} 带来 <b>+1.73% site-wide grid clicks</b>、<b>+3.33% Homefeed grid clicks</b>、<b>+0.55% time spent</b>；S</p></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>

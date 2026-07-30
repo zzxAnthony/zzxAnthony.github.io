@@ -1,10 +1,36 @@
-<!doctype html><html lang="zh-CN" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Recommendation as Generation：从推荐已有内容到生成用户想看的内容。"><title>Recommendation as Generation — ZZX.LOG</title><link rel="icon" href="../assets/favicon.svg"><link rel="stylesheet" href="../assets/styles.css"><script src="../assets/app.js" defer></script></head><body><div class="reading-progress"></div><header class="site-header"><a class="brand" href="../"><span class="brand-mark">Z</span><span>ZZX.LOG</span><i></i></a><nav><a href="../#writing">文章</a><a href="../#about">关于</a><a href="../#stack">技术栈</a></nav><div class="header-actions"><a class="github-link" href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 .7A11.5 11.5 0 0 0 8.36 23.1c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.37-3.9-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.78 1.2 1.78 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.57-.29-5.28-1.29-5.28-5.68 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.16 1.18a10.93 10.93 0 0 1 5.76 0c2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.23 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.4-2.71 5.38-5.29 5.67.42.36.78 1.06.78 2.14v3.18c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg></a><button class="theme-toggle" aria-label="切换主题"><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg><svg class="moon" viewBox="0 0 24 24"><path d="M20.4 15.5A8.5 8.5 0 0 1 8.5 3.6a8.5 8.5 0 1 0 11.9 11.9Z"/></svg></button></div></header><main class="article-shell"><a class="article-back" href="../#writing">← BACK TO WRITING</a><article><header class="article-header"><p class="eyebrow">PAPER / GENERATIVE AI</p><h1>Recommendation as Generation：推荐系统开始生成内容</h1><p class="lead">如果内容池里没有用户真正想看的视频，推荐系统能不能直接把它生成出来？</p><div class="article-meta"><span>生成式 AI</span><time datetime="2026-07-22">2026.07.22</time><span>10 MIN READ</span></div></header><div class="article-body">
-<h2>从“选什么”到“造什么”</h2><p>传统推荐系统的边界由内容池决定。模型再懂用户，也只能从已有物品中找到相对匹配的结果。Recommendation-as-Generation（RaG）把输出空间从固定 item pool 扩展到了可生成内容空间。</p><pre>用户行为与画像
-→ 兴趣 Semantic ID
-→ 视频生产指令
-→ 视频 / 音频 / 特效生成
-→ 真实反馈闭环</pre><p>这不只是把推荐包装成生成，而是让推荐模型负责定义需求，让多模态生成系统完成供给。</p>
-<h2>工业闭环才是关键</h2><p>生成一段视频并不难，难的是生成<strong>值得推荐</strong>的视频。系统必须同时处理兴趣预测、创意规划、工具调度、质量控制和反馈归因。最终的播放、互动和负反馈还要回流，继续约束兴趣建模与内容生成。</p><blockquote>推荐模型决定“用户可能想看什么”，生成模型负责“把这个兴趣做成可消费的内容”。</blockquote>
-<h2>为什么值得关注</h2><ul><li><strong>覆盖长尾需求：</strong>细粒度兴趣不必等待供给侧预先生产。</li><li><strong>内容与人群共同优化：</strong>表达风格、节奏和卖点都能因用户而异。</li><li><strong>重写系统边界：</strong>推荐不再只是分发层，而开始参与内容生产。</li></ul>
-<h2>仍然困难的问题</h2><p>真实系统还需要面对生成成本、内容安全、同质化、版权和探索偏差。尤其当曝光反馈同时训练推荐与生成模型时，系统很容易把短期点击误认为长期价值。因此，RaG 更像一个新系统范式的起点，而不是终点。</p>
-</div><div class="article-end"><p>继续阅读：推荐模型真的会“思考”吗？</p><a class="button ghost" href="onereason.html">NEXT ARTICLE <span>→</span></a></div></article></main><footer><a class="brand" href="../"><span class="brand-mark">Z</span><span>ZZX.LOG</span></a><p>© <span id="year">2026</span> ZZX</p><a href="#">BACK TO TOP ↑</a></footer></body></html>
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="1. 概述传统短视频推荐系统的基本范式是： 用户兴趣建模 -&gt; 从已有视频池中召回/排序 -&gt; 曝光给用户即使模型从 DLRM 发展到生成式推荐模型 GRM，本质上也仍然是“从已有内容池里选”。GRM 可以把用户兴趣表示成 Semantic ID，甚至用自回归模型预测用户未来…">
+  <meta name="author" content="zzx">
+  <title>Recommendation as Generation：生成用户想看的内容 — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 生成式推荐</p>
+        <h1>Recommendation as Generation：生成用户想看的内容</h1>
+        <p class="lead">1. 概述传统短视频推荐系统的基本范式是： 用户兴趣建模 -&gt; 从已有视频池中召回/排序 -&gt; 曝光给用户即使模型从 DLRM 发展到生成式推荐模型 GRM，本质上也仍然是“从已有内容池里选”。GRM 可以把用户兴趣表示成 Semantic ID，甚至用自回归模型预测用户未来…</p>
+        <div class="article-meta"><span>生成式推荐</span><span>zzx</span><time datetime="2026-07-15">2026.07.15</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2060766562089440903" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><figure><img src="https://picx.zhimg.com/v2-59f569f2b6dc4c837ba9fa48f8b21185_1440w.jpg" alt="" loading="lazy"></figure><h2>1. 概述</h2><p>传统短视频推荐系统的基本范式是：</p><div><pre><code class="language-text">用户兴趣建模 -&gt; 从已有视频池中召回/排序 -&gt; 曝光给用户</code></pre></div><p>即使模型从 DLRM 发展到生成式推荐模型 GRM，本质上也仍然是“从已有内容池里选”。GRM 可以把用户兴趣表示成 Semantic ID，甚至用自回归模型预测用户未来可能感兴趣的 SID，但最终通常还是拿这些 SID 去检索已有视频。</p><p>这篇论文提出的 Recommendation-as-Generation，简称 RaG：<b>推荐系统不再只负责匹配已有内容，而是根据用户兴趣直接生成个性化视频</b>。</p><p>因此它的目标是把推荐系统的输出空间从固定 item pool 扩展到可生成内容空间：</p><div><pre><code class="language-text">用户行为与画像
+-&gt; 预测用户兴趣的离散语义表示
+-&gt; 生成面向该兴趣的视频生产指令
+-&gt; 调用视频、音频、特效工具生成个性化视频
+-&gt; 用真实反馈继续优化推荐与生成</code></pre></div><p>推荐模型决定“用户可能想看什么”，生成模型负责“把这个兴趣做成可消费的视频”，线上反馈再反过来约束下一轮兴趣建模和内容生成。</p><h3>2. 现有推荐范式的缺点</h3><p>论文认为，现有推荐系统有一个根本瓶颈：<b>内容池先于推荐存在</b>。</p><p>在传统系统里，用户兴趣再细，推荐模型也只能从现</p></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>
