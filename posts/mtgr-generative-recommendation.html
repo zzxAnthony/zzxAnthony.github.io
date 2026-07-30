@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="0. 写在前面先回顾一下： OneRec 的目标是： 用生成式模型统一召回和排序，直接生成推荐 session。PinRec 的目标是： 用生成式模型生成 dense embedding，作为工业级召回通道。MTGR 的目标更像是： 在不丢掉传统 DLRM 交叉特征的前提下， 把 ranking model …">
+  <meta name="author" content="zzx">
+  <title>MTGR：工业级生成式推荐框架 — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 生成式推荐</p>
+        <h1>MTGR：工业级生成式推荐框架</h1>
+        <p class="lead">0. 写在前面先回顾一下： OneRec 的目标是： 用生成式模型统一召回和排序，直接生成推荐 session。PinRec 的目标是： 用生成式模型生成 dense embedding，作为工业级召回通道。MTGR 的目标更像是： 在不丢掉传统 DLRM 交叉特征的前提下， 把 ranking model …</p>
+        <div class="article-meta"><span>生成式推荐</span><span>zzx</span><time datetime="2026-05-29">2026.05.29</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2043718578311100033" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><h2>0. 写在前面</h2><p>先回顾一下：</p><p>OneRec 的目标是：</p><div><pre><code class="language-text">用生成式模型统一召回和排序，直接生成推荐 session。</code></pre></div><p>PinRec 的目标是：</p><div><pre><code class="language-text">用生成式模型生成 dense embedding，作为工业级召回通道。</code></pre></div><p>MTGR 的目标更像是：</p><div><pre><code class="language-text">在不丢掉传统 DLRM 交叉特征的前提下，
+把 ranking model 做成可以像 GRM 一样扩展的大序列模型。</code></pre></div><p>很多生成式推荐为了把推荐问题组织成 token 序列，会放弃传统工业推荐模型里长期积累的 cross features。但美团发现，<b>丢掉 cross features 会严重伤害效果，而且靠扩大模型规模也补不回来</b>。</p><p>所以 MTGR 的核心不是“生成 item ID”，也不是“生成 embedding”。它更像一种 <b>generative-style ranking framework</b>：</p><div><pre><code class="language-text">把同一用户请求下的多个候选 item 聚合成一个 token 序列，
+保留用户特征、历史序列、实时行为、候选特征、cross features，
+再用 HSTU/self-attention 一次性输出所有候选的排序分数。</code></pre></div><p>论文报告 MTGR-large 相比美团线上优化两年</p></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>

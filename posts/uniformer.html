@@ -1,10 +1,36 @@
-<!doctype html><html lang="zh-CN" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="快手 UniFormer 论文精读：从组件扩容到特征空间与任务空间统一扩容。"><title>UniFormer：统一模型扩容 — zzx</title><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/styles.css"><script src="../assets/app.js" defer></script></head><body><div class="reading-progress"></div><header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header><main class="article-shell"><a class="article-back" href="../writing.html">← 返回文章</a><article><header class="article-header"><p class="eyebrow">PAPER / RECOMMENDER SYSTEMS</p><h1>UniFormer：从组件扩容到统一模型扩容</h1><p class="lead">推荐模型真正的扩容，不只是把某个 Transformer 堆得更深，而是重新组织 feature space 与 task space。</p><div class="article-meta"><span>论文精读</span><time datetime="2026-07-28">2026.07.28</time><span>12 MIN READ</span></div></header><div class="article-body">
-<h2>问题：组件级扩容为什么不够？</h2><p>工业精排模型通常由行为序列建模、非序列特征交叉和多任务预估组成。过去的扩容大多发生在某一个模块：序列侧加长历史，交叉侧增加层数，多任务侧增加 expert。但系统的真实建模空间并不是这些模块的简单拼接。</p><pre>Embedding / Tokenization
-→ Sequence Modeling
-→ Feature Interaction
-→ Multi-task Learning
-→ Prediction Heads</pre><p>只扩一个组件会让容量分配失衡。更关键的是，很多联合模型只统一了 feature space，点击、时长、点赞等任务仍然停留在末端 tower 中。</p>
-<h2>核心：两阶段统一交互</h2><p>UniFormer 的关键判断是：先让序列行为与非序列特征在 feature space 中充分融合，再让 task token 主动读取高阶特征，并显式建模任务关系。</p><blockquote>把工业推荐排序从 component-centric scaling 推向 model-centric co-scaling，并把 task space 作为一等公民。</blockquote><p>这让任务不再只是被动接收共享表示的输出头，而成为统一交互空间里的查询者。模型容量也因此能在特征理解与目标区分之间更自然地流动。</p>
-<h2>工程上的三个启示</h2><ol><li><strong>先定义扩容坐标。</strong> 参数量不是唯一尺度，应分别观察序列、特征和任务三个维度的瓶颈。</li><li><strong>任务冲突需要结构化处理。</strong> 共享底座越强，越需要让任务保留独立读取与交互的能力。</li><li><strong>统一不等于完全共享。</strong> 合理的 token 设计和交互边界，往往比简单堆叠层数更重要。</li></ol>
-<h2>我的判断</h2><p>UniFormer 最值得关注的不是某个局部模块，而是它重新定义了推荐模型“应该在哪里扩容”。当序列长度、特征数量和业务目标都继续增长时，统一空间中的容量协同会比单点放大更重要。</p>
-</div><div class="article-end"><p>继续阅读：生成式推荐如何跨出内容池？</p><a class="arrow-link" href="recommendation-as-generation.html">下一篇 <span>→</span></a></div></article></main><footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer></body></html>
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="1. 这篇论文在解决什么问题UniFormer 讨论的是工业推荐排序模型的一个很现实的问题： 推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。传统工业精排模型通常可以拆成几块： Embedding / Tokenization -&gt; 用户行为序…">
+  <meta name="author" content="zzx">
+  <title>快手 UniFormer ：从组件扩容到特征空间与任务空间统一扩容 — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 推荐系统</p>
+        <h1>快手 UniFormer ：从组件扩容到特征空间与任务空间统一扩容</h1>
+        <p class="lead">1. 这篇论文在解决什么问题UniFormer 讨论的是工业推荐排序模型的一个很现实的问题： 推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。传统工业精排模型通常可以拆成几块： Embedding / Tokenization -&gt; 用户行为序…</p>
+        <div class="article-meta"><span>推荐系统</span><span>zzx</span><time datetime="2026-07-26">2026.07.26</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2064668953616691365" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><h2>1. 这篇论文在解决什么问题</h2><p>UniFormer 讨论的是工业推荐排序模型的一个很现实的问题：<b>推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。</b></p><p>传统工业精排模型通常可以拆成几块：</p><div><pre><code class="language-text">Embedding / Tokenization
+-&gt; 用户行为序列建模
+-&gt; 非序列特征交叉
+-&gt; 多任务建模
+-&gt; 多目标预估输出</code></pre></div><p>过去几年，业界对这些模块分别做过扩容：</p><ol><li>行为序列建模扩容：DIN、DIEN、SIM、C-Former、LONGER 等，重点是把用户历史行为建模得更细。</li><li>特征交叉扩容：DCN、RankMixer、Transformer-style token mixing 等，重点是加强 feature interaction。</li><li>多任务建模扩容：MMoE、PLE、HoME、MoE-style task experts 等，重点是处理点击、时长、点赞、关注等目标之间的共享与冲突。</li></ol><p>这些方法都有效，但它们大多还是在“某个组件”里加容量。UniFormer 的核心判断是：当模型继续变大时，只扩一个组件会遇到瓶颈，因为推荐排序的真实建模空间不是单一模块，而是：</p><div><pre><code class="language-text">序列行为 + 非序列</code></pre></div></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>

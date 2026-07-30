@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="一、背景 在HyFormer之前，工业推荐模型的主流范式可以概括为：原始特征 → 序列建模（压缩）→ 特征交互（融合）→ 输出 其中序列建模的代表有 LONGER（通过交叉注意力压缩长序列）、SIM（搜索兴趣网络）等；特征交互的代表有 RankMixer（基于MLP-Mixer的T…">
+  <meta name="author" content="zzx">
+  <title>HyFormer:统一序列建模与特征交叉 — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 推荐系统</p>
+        <h1>HyFormer:统一序列建模与特征交叉</h1>
+        <p class="lead">一、背景 在HyFormer之前，工业推荐模型的主流范式可以概括为：原始特征 → 序列建模（压缩）→ 特征交互（融合）→ 输出 其中序列建模的代表有 LONGER（通过交叉注意力压缩长序列）、SIM（搜索兴趣网络）等；特征交互的代表有 RankMixer（基于MLP-Mixer的T…</p>
+        <div class="article-meta"><span>推荐系统</span><span>zzx</span><time datetime="2026-03-15">2026.03.15</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2016465848190116619" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><h2>一、背景</h2><p><br>在HyFormer之前，工业推荐模型的主流范式可以概括为：原始特征 → 序列建模（压缩）→ 特征交互（融合）→ 输出<br>其中序列建模的代表有 LONGER（通过交叉注意力压缩长序列）、SIM（搜索兴趣网络）等；特征交互的代表有 RankMixer（基于MLP-Mixer的Token混合）、DCN V2（深度交叉网络）等。<br>这种解耦架构的直观优点是模块清晰、易于替换。但作者通过大量实验发现，这种单向信息流限制了模型的表达能力。例如，在特征交互阶段，如果希望从序列中再次提取某些信息，由于序列已经被压缩，只能使用压缩后的固定表示，无法“回头看”原始序列。此外，当引入多个异构序列（如搜索序列+观看序列）时，简单合并会破坏各自的语义结构。<br>HyFormer的核心洞察：序列建模和特征交互不应该被割裂，而应该在同一模型内部交替进行、相互增强。基于这一思想，他们设计了统一架构，通过“Global Token”作为桥梁，让序列信息与特征交互实现双向流动，这一点也是OneTrans所提到的。</p><h2><br>二、HyFormer总体设计<br></h2><figure><img src="https://pica.zhimg.com/v2-ecedb3abb557c5417e1f3a6c741847a2_1440w.jpg" alt="" loading="lazy"></figure><p><br>HyFormer的整体架构如上图所示：<br></p><ul><li>输入侧：包括两类数据<br></li><ul><li>非序列特征（NS Tokens</li></ul></ul></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>

@@ -1,10 +1,32 @@
-<!doctype html><html lang="zh-CN" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="OneReason 技术分析：生成式推荐模型如何建立语义感知和推理能力。"><title>OneReason：推荐模型真的会思考吗 — zzx</title><link rel="icon" href="../assets/favicon.svg"><link rel="stylesheet" href="../assets/styles.css"><script src="../assets/app.js" defer></script></head><body><div class="reading-progress"></div><header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header><main class="article-shell"><a class="article-back" href="../writing.html">← 返回文章</a><article><header class="article-header"><p class="eyebrow">PAPER / MODEL REASONING</p><h1>OneReason：推荐模型真的会“思考”吗？</h1><p class="lead">一段看似合理的 Chain-of-Thought，不等于模型真的理解了用户。推荐推理需要先解决感知，再解决认知。</p><div class="article-meta"><span>模型分析</span><time datetime="2026-07-16">2026.07.16</time><span>11 MIN READ</span></div></header><div class="article-body">
-<h2>推荐中的“推理”是什么？</h2><p>传统生成式推荐把用户行为编码成 item token 序列，并做下一个 token 预测。这种范式善于学习行为转移，却不天然拥有可解释的中间认知。直接套用语言模型里的 CoT，往往只会得到听起来合理的解释。</p><p>OneReason 把有效推理拆成两个前提：模型先理解 itemic token 背后的语义，再从历史行为中抽象兴趣并判断其演化。</p>
-<h2>先感知，再认知</h2><pre>item token ↔ 文本语义对齐
-→ 用户画像抽象
-→ 兴趣扩展
-→ 转移判断
-→ 下一推荐目标</pre><p>为了让离散 token 不再只是 ID，模型在 token、item、relation 和 user 四个粒度上学习语义。结构化 CoT 则要求模型明确写出长期偏好、短期兴趣和转移依据。</p><blockquote>推荐推理更接近溯因：根据行为证据，提出最可能解释用户下一兴趣的假设。</blockquote>
-<h2>为什么普通 CoT 不够</h2><p>语言流畅度很容易掩盖推理缺陷。模型可以生成“用户喜欢科技，所以推荐耳机”之类的泛化解释，却没有使用具体的时序、强度或上下文证据。有效的训练目标必须让中间推理与最终推荐结果共同接受约束。</p>
-<h2>对实践的启示</h2><ol><li><strong>不要把解释性当成推理能力。</strong> 要验证中间步骤是否真的改变结果。</li><li><strong>离散表示必须可被语义监督。</strong> 否则模型只是在更大规模地记忆转移。</li><li><strong>评估要覆盖 thinking 与 direct 两种模式。</strong> 推理成本只有在带来稳定增益时才值得。</li></ol><p>OneReason 真正有价值的地方，是把“推荐模型会不会思考”变成了一个可训练、可验证的系统问题。</p>
-</div><div class="article-end"><p>回到第一篇：统一模型扩容。</p><a class="arrow-link" href="uniformer.html">阅读 UniFormer <span>→</span></a></div></article></main><footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer></body></html>
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="1. 论文概述论文提出 OneReason，核心目标是让推荐模型真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点： 感知能力：模型必须理解 itemic token 背后的语义，不能只把物品 token 当成离散 ID。认知能力：模型…">
+  <meta name="author" content="zzx">
+  <title>OneReason 技术分析报告 — zzx</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="reading-progress"></div>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <main class="article-shell">
+    <a class="article-back" href="../writing.html">← 返回文章</a>
+    <article>
+      <header class="article-header">
+        <p class="eyebrow">WRITING / 模型推理</p>
+        <h1>OneReason 技术分析报告</h1>
+        <p class="lead">1. 论文概述论文提出 OneReason，核心目标是让推荐模型真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点： 感知能力：模型必须理解 itemic token 背后的语义，不能只把物品 token 当成离散 ID。认知能力：模型…</p>
+        <div class="article-meta"><span>模型推理</span><span>zzx</span><time datetime="2026-07-04">2026.07.04</time><span>4 MIN READ</span></div>
+        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2056780687726981663" target="_blank" rel="noreferrer">知乎原文 ↗</a>
+      </header>
+      <div class="article-body"><h3>1. 论文概述</h3><p>论文提出 OneReason，核心目标是让推荐模型真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点：</p><ol><li>感知能力：模型必须理解 itemic token 背后的语义，不能只把物品 token 当成离散 ID。</li><li>认知能力：模型必须能把用户历史行为压缩成清晰的兴趣点，并判断兴趣如何演化到下一个推荐目标。</li></ol><p>因此，OneReason 的技术路线可以概括为：先做 item-token 与文本语义的深度对齐，再用结构化 CoT 训练推荐推理，最后通过面向推荐目标的强化学习提升 thinking 模式效果。</p><h3>2. 核心思想</h3><p>传统生成式推荐把用户行为序列建模为 item token 的下一个 token 预测，本质上更像学习“行为转移规律”。这种方式有规模化优势，但缺少可解释的中间思考过程。</p><p>OneReason 的判断是：推荐任务中的推理不是数学题式的严格演绎，而是溯因式推理。模型需要根据用户过往行为，假设用户可能的潜在兴趣，再判断哪些兴趣更可能延续、变化或转移。例如，用户近期看了装修材料、搜索了地板价格，又浏览了床品内容，模型需要推断其兴趣可能从“硬装成本”</p></div>
+      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+    </article>
+  </main>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+</body>
+</html>
