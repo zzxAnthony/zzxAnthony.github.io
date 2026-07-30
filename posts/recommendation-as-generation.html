@@ -6,20 +6,20 @@
   <meta name="description" content="1. 概述传统短视频推荐系统的基本范式是： 用户兴趣建模 -&gt; 从已有视频池中召回/排序 -&gt; 曝光给用户即使模型从 DLRM 发展到生成式推荐模型 GRM，本质上也仍然是“从已有内容池里选”。GRM 可以把用户兴趣表示成 Semantic ID，甚至用自回归模型预测用户未来…">
   <meta name="author" content="zzx">
   <title>Recommendation as Generation：生成用户想看的内容 — zzx</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="../assets/favicon.png" type="image/png">
   <link rel="stylesheet" href="../assets/styles.css">
   <script src="../assets/app.js" defer></script>
 </head>
 <body>
   <div class="reading-progress"></div>
-  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
   <main class="article-shell">
     <a class="article-back" href="../writing.html">← 返回文章</a>
     <article>
       <header class="article-header">
-        <p class="eyebrow">WRITING / 生成式推荐</p>
+        <p class="eyebrow">TECHNICAL NOTE / 生成式推荐</p>
         <h1>Recommendation as Generation：生成用户想看的内容</h1>
-        <p class="lead">1. 概述传统短视频推荐系统的基本范式是： 用户兴趣建模 -&gt; 从已有视频池中召回/排序 -&gt; 曝光给用户即使模型从 DLRM 发展到生成式推荐模型 GRM，本质上也仍然是“从已有内容池里选”。GRM 可以把用户兴趣表示成 Semantic ID，甚至用自回归模型预测用户未来…</p>
+        <p class="lead">讨论推荐系统从既有内容检索向个性化内容生成拓展的模型框架、训练方法与系统影响。</p>
         <div class="article-meta"><span>生成式推荐</span><span>zzx</span><time datetime="2026-07-15">2026.07.15</time><span>15 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2060766562089440903" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
@@ -82,9 +82,7 @@
 creative description: 描述风格、节奏、氛围、镜头语言
 </code></pre>
 <p>然后将视频视觉 token 和对应文本描述一起送入 VLM，取最后一层最后 token 的 hidden state，得到两个归一化表示：</p>
-<p>$$
-z_{content}, z_{creative}
-$$</p>
+<div class="math-display">\[z_{content}, z_{creative}\]</div>
 <p>训练目标由三部分组成：</p>
 <ol>
 <li>content 表示的对比学习损失。</li>
@@ -102,9 +100,7 @@ $$</p>
 <p>实验中，D-SIDs 在语义检索和离散化质量上都明显优于基线。R@1 达到 0.896，高于 Qwen2.5-VL-7B 的 0.769；量化 collision rate 降到 2.62%，而 QARM 是 18.24%。这说明解耦后的 SID 不只是概念漂亮，确实降低了离散编码冲突。</p>
 <h2>5. GRM：预测用户未来兴趣的 D-SIDs</h2>
 <p>论文把推荐部分建模为标准自回归序列预测：</p>
-<p>$$
-p(D\text{-}SIDs \mid c_{user}) = \prod_{t=1}^{2L} p(s_t \mid s_{&lt;t}, c_{user})
-$$</p>
+<div class="math-display">\[p(D\text{-}SIDs \mid c_{user}) = \prod_{t=1}^{2L} p(s_t \mid s_{&lt;t}, c_{user})\]</div>
 <p>这里的用户上下文包括画像、历史交互、曝光、点击、观看时长、转化等行为信号。GRM 输出的不再是某个 item ID，而是一段 D-SIDs，代表用户下一阶段可能感兴趣的内容语义和创意语义。</p>
 <p>和普通生成式推荐最大的区别在于：<strong>RaG 不把预测出来的 SID 只当作检索 key，而是把它当作可生成内容的目标语义</strong>。</p>
 <p>这使得 GRM 的角色从“候选生成器”变成“兴趣规格生成器”。它生成的是未来内容应该满足的语义条件，而不是某个已经存在的视频。</p>
@@ -165,14 +161,10 @@ $$</p>
 </code></pre>
 <p><code>R_real</code> 来自真实点击、点赞、收藏、购买等行为，稀疏但可信；<code>R_pred</code> 来自线上排序模型预估，密集但有模型偏差。</p>
 <p>关键点在于，论文没有简单把三个奖励加权求和，而是把用户反馈设为主目标，把兴趣对齐和视频质量设为约束：</p>
-<p>$$
-R(y_i) = R_{feedback}(y_i) - \sum_{c \in {a,q}} \lambda_c(t) \text{ReLU}(\tau_c - R_c(y_i))
-$$</p>
+<div class="math-display">\[R(y_i) = R_{feedback}(y_i) - \sum_{c \in \{a,q\}} \lambda_c(t) \text{ReLU}(\tau_c - R_c(y_i))\]</div>
 <p>直观解释是：系统主要追求真实业务反馈，但如果兴趣对齐或视频质量低于阈值，就施加惩罚。阈值不是拍脑袋设置，而是根据 SFT baseline 的均值和方差校准；不同模块约束强度不同，VGAs 最严格，IM 次之，GRM 更宽松。</p>
 <p>优化上使用 GDPO，做 group-relative advantage：</p>
-<p>$$
-A_i = \frac{R(y_i) - \mu(Y)}{\sigma(Y) + \epsilon}
-$$</p>
+<div class="math-display">\[A_i = \frac{R(y_i) - \mu(Y)}{\sigma(Y) + \epsilon}\]</div>
 <p>这样可以缓解不同奖励尺度不一致的问题，也更适合多候选生成后的相对偏好优化。</p>
 <h2>9. 工业部署：实时预测兴趣，近线生成视频</h2>
 <p>RaG 不是实时端到端生成视频。论文非常坦诚地承认：视频生成太慢，不能直接放进在线推荐主链路。</p>
@@ -299,6 +291,6 @@ RaG: 把预测出的兴趣 SID 进一步解码成新内容
 <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
-  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
 </body>
 </html>

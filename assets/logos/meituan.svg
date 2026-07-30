@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">美团</title>
+  <rect width="96" height="96" rx="24" fill="#ffd000"/>
+  <path d="M24 28h48v8H24zm4 15h40v8H28zm-4 15h48v8H24z" fill="#171717" opacity=".12"/>
+  <text x="48" y="61" fill="#171717" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="25" font-weight="800" text-anchor="middle">美团</text>
+</svg>

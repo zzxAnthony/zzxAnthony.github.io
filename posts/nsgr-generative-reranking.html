@@ -6,20 +6,20 @@
   <meta name="description" content="0. 写在前面这篇论文讨论的是推荐系统最末端的 reranking 重排。现代推荐系统简化成三段： 召回 matching -&gt; 粗/精排 ranking -&gt; 重排 reranking那么重排阶段面对的问题不是“单个 item 该不该推荐”，而是：给定一组候选 item，如何生成一个整体最优的展示…">
   <meta name="author" content="zzx">
   <title>NSGR：生成式重排 — zzx</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="../assets/favicon.png" type="image/png">
   <link rel="stylesheet" href="../assets/styles.css">
   <script src="../assets/app.js" defer></script>
 </head>
 <body>
   <div class="reading-progress"></div>
-  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="../now.html">近况</a></nav><div class="top-actions"><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎 ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
+  <header class="topbar"><a class="wordmark" href="../">zzx<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
   <main class="article-shell">
     <a class="article-back" href="../writing.html">← 返回文章</a>
     <article>
       <header class="article-header">
-        <p class="eyebrow">WRITING / 生成式推荐</p>
+        <p class="eyebrow">TECHNICAL NOTE / 生成式推荐</p>
         <h1>NSGR：生成式重排</h1>
-        <p class="lead">0. 写在前面这篇论文讨论的是推荐系统最末端的 reranking 重排。现代推荐系统简化成三段： 召回 matching -&gt; 粗/精排 ranking -&gt; 重排 reranking那么重排阶段面对的问题不是“单个 item 该不该推荐”，而是：给定一组候选 item，如何生成一个整体最优的展示…</p>
+        <p class="lead">分析 Next-Scale Generation Reranking 的树形生成过程、多尺度评估器与训练目标。</p>
         <div class="article-meta"><span>生成式推荐</span><span>zzx</span><time datetime="2026-06-02">2026.06.02</time><span>4 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2045225107149304382" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
@@ -29,6 +29,6 @@
       <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
-  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>论文、工程与长期思考。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+  <footer class="site-footer wrap"><div><a class="wordmark" href="../">zzx<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
 </body>
 </html>

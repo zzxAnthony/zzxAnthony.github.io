@@ -92,3 +92,21 @@ if (articleBody && articleShell) {
     document.body.append(toc);
   }
 }
+
+if (articleBody?.querySelector('.math-inline, .math-display')) {
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)'], ['$', '$']],
+      displayMath: [['\\[', '\\]'], ['$$', '$$']],
+      processEscapes: true,
+    },
+    options: {
+      skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+    },
+  };
+  const mathScript = document.createElement('script');
+  mathScript.id = 'MathJax-script';
+  mathScript.defer = true;
+  mathScript.src = 'https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js';
+  document.head.append(mathScript);
+}

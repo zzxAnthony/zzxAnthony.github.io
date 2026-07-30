@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="zzx 的个人博客，关注生成式推荐、具身智能与工程实践。">
+  <meta name="description" content="zzx 的个人学术主页，研究方向为生成式推荐与具身智能。">
   <meta name="author" content="zzx">
   <meta property="og:title" content="zzx — 生成式推荐与具身智能">
-  <meta property="og:description" content="论文拆解、系统思考与工程实践。">
+  <meta property="og:description" content="研究方向、论文成果、技术文章与个人履历。">
   <meta property="og:type" content="website">
   <title>zzx — 生成式推荐与具身智能</title>
-  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon.png" type="image/png">
   <link rel="stylesheet" href="assets/styles.css">
   <script src="assets/app.js" defer></script>
 </head>
@@ -17,59 +17,69 @@
   <a class="skip-link" href="#content">跳到正文</a>
   <div class="ambient ambient-a" aria-hidden="true"></div><div class="ambient ambient-b" aria-hidden="true"></div>
 
-  <header class="topbar shell-card">
+  <header class="topbar">
     <a class="wordmark" href="./">zzx<span>.</span></a>
-    <nav><a href="./" aria-current="page">首页</a><a href="writing.html">文章</a><a href="about.html">关于</a><a href="now.html">近况</a></nav>
-    <div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer" aria-label="GitHub">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div>
+    <nav aria-label="主导航"><a href="./" aria-current="page">首页</a><a href="writing.html">文章</a><a href="publications.html">论文</a><a href="about.html">履历</a></nav>
+    <div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div>
   </header>
 
   <main id="content" class="site-shell">
     <section class="hero-grid">
       <div class="hero-copy reveal">
-        <span class="eyebrow"><i class="status-dot"></i> BEIJING · AVAILABLE FOR IDEAS</span>
-        <h1>你好，我是<br><em>zzx</em><span class="hero-mark">.</span></h1>
-        <p class="hero-role">Generative Recommendation <b>×</b> Embodied AI</p>
-        <div class="hero-facts"><span>北航软件学院</span><span>复杂关键软件环境全国重点实验室</span></div>
-        <div class="hero-actions"><a class="button primary" href="writing.html">阅读文章 <span>→</span></a><a class="button secondary" href="about.html">了解经历</a></div>
+        <span class="eyebrow"><i class="status-dot"></i> RESEARCH PROFILE · BEIJING</span>
+        <h1><em>zzx</em><span class="hero-mark">.</span></h1>
+        <p class="hero-role">Generative Recommendation <b>×</b> Embodied Intelligence</p>
+        <p class="hero-summary">北京航空航天大学软件学院在读，所在单位为复杂关键软件环境全国重点实验室，研究方向为生成式推荐与具身智能。</p>
+        <div class="hero-facts"><span>北京航空航天大学</span><span>软件学院</span><span>全国重点实验室</span></div>
+        <div class="hero-actions"><a class="button primary" href="writing.html">浏览技术文章 <span>→</span></a><a class="button secondary" href="publications.html">论文成果</a></div>
       </div>
 
-      <aside class="profile-card shell-card reveal">
-        <div class="avatar-wrap"><img src="assets/avatar.jpg" alt="zzx 的头像"><span class="avatar-status" title="正在研究"></span></div>
-        <h2>zzx</h2><p>算法研究者 · 技术写作者</p>
-        <div class="profile-stats"><div><b>11</b><span>文章</span></div><div><b>2</b><span>研究方向</span></div><div><b>2</b><span>算法实习</span></div></div>
-        <div class="social-row"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎</a><a href="mailto:1353736793@qq.com">Email</a></div>
+      <aside class="profile-card shell-card reveal" aria-label="个人资料">
+        <div class="avatar-wrap"><img src="assets/avatar.jpg" alt="zzx 的头像"><span class="avatar-status" title="当前在读"></span></div>
+        <h2>zzx</h2>
+        <p class="profile-title">研究生 · 算法研究</p>
+        <p class="profile-affiliation"><img src="assets/logos/buaa.svg" alt="">北京航空航天大学</p>
+        <div class="profile-stats"><div><b>11</b><span>技术文章</span></div><div><b>2</b><span>研究方向</span></div><div><b>0</b><span>公开论文</span></div></div>
+        <div class="social-row"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts" target="_blank" rel="noreferrer">知乎</a><a href="mailto:zzx_anthony@163.com">Email</a></div>
       </aside>
     </section>
 
+    <figure class="anime-research-banner shell-card reveal">
+      <img src="assets/research-cats.jpg" alt="两只猫在研究桌前使用电脑，画面包含推荐网络、机械臂与航空元素">
+      <figcaption><span>RESEARCH NOTEBOOK</span><strong>生成式推荐 × 具身智能</strong><small>原创动漫水彩插画</small></figcaption>
+    </figure>
+
     <div class="content-grid">
       <aside class="sidebar">
-        <section class="widget shell-card reveal"><header><span class="widget-icon">⌁</span><h2>研究主题</h2></header><a class="category-row" href="writing.html?tag=generative"><span><i class="cat-icon violet">G</i>生成式推荐</span><b>6</b></a><a class="category-row" href="writing.html?tag=recommendation"><span><i class="cat-icon cyan">R</i>推荐系统</span><b>11</b></a><a class="category-row" href="writing.html?tag=embodied"><span><i class="cat-icon amber">E</i>具身智能</span><b>研究中</b></a></section>
+        <section class="widget shell-card reveal"><header><span class="widget-icon">⌁</span><h2>研究方向</h2></header><a class="category-row" href="writing.html?tag=generative"><span><i class="cat-icon violet">G</i>生成式推荐</span><b>6</b></a><a class="category-row" href="writing.html?tag=recommendation"><span><i class="cat-icon cyan">R</i>推荐系统</span><b>11</b></a><a class="category-row" href="writing.html?tag=embodied"><span><i class="cat-icon amber">E</i>具身智能</span><b>研究中</b></a></section>
 
-        <section class="widget shell-card reveal"><header><span class="widget-icon">#</span><h2>关键词</h2></header><div class="tag-cloud"><a href="writing.html?tag=generative">Semantic ID</a><a href="writing.html?tag=generative">Generative RecSys</a><a href="writing.html?tag=embodied">VLA</a><a href="writing.html?tag=embodied">Robot Learning</a><a href="writing.html?tag=recommendation">Sequence Modeling</a><a href="writing.html?tag=recommendation">Multi-task</a></div></section>
+        <section class="widget shell-card reveal"><header><span class="widget-icon">#</span><h2>研究关键词</h2></header><div class="tag-cloud"><a href="writing.html?tag=generative">Semantic ID</a><a href="writing.html?tag=generative">Generative RecSys</a><a href="writing.html?tag=embodied">VLA</a><a href="writing.html?tag=embodied">Robot Learning</a><a href="writing.html?tag=recommendation">Sequence Modeling</a><a href="writing.html?tag=recommendation">Multi-task Learning</a></div></section>
 
-        <section class="widget shell-card reveal"><header><span class="widget-icon">↗</span><h2>经历</h2></header><div class="mini-timeline"><div><i></i><time>目前</time><p>北航软件学院<br><span>全国重点实验室</span></p></div><div><i></i><time>2026</time><p>百度人才智库<br><span>算法实习生</span></p></div><div><i></i><time>2025—26</time><p>美团决策智能中心<br><span>算法实习生</span></p></div><div><i></i><time>2021—25</time><p>西南石油大学</p></div></div><a class="widget-more" href="about.html">完整履历 →</a></section>
+        <section class="widget shell-card reveal"><header><span class="widget-icon">◎</span><h2>学术背景</h2></header><div class="affiliation-list"><a href="about.html#education"><img src="assets/logos/buaa.svg" alt="北京航空航天大学标识"><span><b>北京航空航天大学</b><small>软件学院 · 硕士研究生</small></span></a><a href="about.html#education"><img src="assets/logos/swpu.svg" alt="西南石油大学标识"><span><b>西南石油大学</b><small>本科 · 2021—2025</small></span></a></div><a class="widget-more" href="about.html">查看完整履历 →</a></section>
 
-        <section class="widget now-widget shell-card reveal"><div class="now-head"><span class="live-dot"></span><b>NOW</b><small>2026.07</small></div><p>整理生成式推荐论文谱系，建立具身智能研究地图。</p><a href="now.html">查看近况 →</a></section>
+        <section class="widget contact-widget shell-card reveal"><header><span class="widget-icon">@</span><h2>联系方式</h2></header><a href="mailto:zzx_anthony@163.com">zzx_anthony@163.com</a></section>
       </aside>
 
       <div class="main-feed">
         <section class="feed-section reveal">
-          <header class="feed-heading"><div><span class="section-kicker">LATEST WRITING</span><h2>最近文章</h2></div><a href="writing.html">全部文章 →</a></header>
-          <article class="post-card featured-post shell-card"><div class="post-accent violet-bg"><span>01</span><div class="mini-diagram"><i></i><i></i><i></i></div></div><div class="post-copy"><div class="post-meta"><span>推荐系统</span><time datetime="2026-07-26">2026.07.26</time><small>30 MIN</small></div><h3><a href="posts/uniformer.html">快手 UniFormer：从组件扩容到特征空间与任务空间统一扩容</a></h3><p>从组件级扩容走向 feature space 与 task space 的统一扩容。</p><div class="post-footer"><span>zzx</span><a href="posts/uniformer.html" aria-label="阅读全文">↗</a></div></div></article>
+          <header class="feed-heading"><div><span class="section-kicker">LATEST WRITING</span><h2>近期文章</h2></div><a href="writing.html">全部文章 →</a></header>
+          <article class="post-card featured-post shell-card"><div class="post-accent violet-bg"><span>01</span><div class="mini-diagram"><i></i><i></i><i></i></div></div><div class="post-copy"><div class="post-meta"><span>推荐系统</span><time datetime="2026-07-26">2026.07.26</time><small>30 MIN</small></div><h3><a href="posts/uniformer.html">快手 UniFormer：从组件扩容到特征空间与任务空间统一扩容</a></h3><p>分析工业推荐模型在特征空间、任务空间与服务效率上的统一扩展方法。</p><div class="post-footer"><span>zzx</span><a href="posts/uniformer.html" aria-label="阅读全文">↗</a></div></div></article>
 
           <div class="post-grid">
-            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>生成式推荐</span><time datetime="2026-07-15">2026.07.15</time></div><h3><a href="posts/recommendation-as-generation.html">Recommendation as Generation：生成用户想看的内容</a></h3><p>从固定内容池迈向可生成的个性化内容空间。</p><div class="post-footer"><span>zzx</span><a href="posts/recommendation-as-generation.html">↗</a></div></div></article>
-            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>推荐系统</span><time datetime="2026-07-13">2026.07.13</time></div><h3><a href="posts/recommender-system-overview.html">一文了解推荐系统全貌</a></h3><p>召回、排序、序列建模与生成式推荐的知识地图。</p><div class="post-footer"><span>zzx</span><a href="posts/recommender-system-overview.html">↗</a></div></div></article>
-            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>Semantic ID</span><time datetime="2026-07-10">2026.07.10</time></div><h3><a href="posts/resid-semantic-id.html">ReSID：从推荐系统视角重新设计语义 ID</a></h3><p>把 Semantic ID 重新理解为推荐系统原生的预测接口。</p><div class="post-footer"><span>zzx</span><a href="posts/resid-semantic-id.html">↗</a></div></div></article>
-            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>模型推理</span><time datetime="2026-07-04">2026.07.04</time></div><h3><a href="posts/onereason.html">OneReason 技术分析报告</a></h3><p>推荐模型如何先理解用户与物品，再完成推理。</p><div class="post-footer"><span>zzx</span><a href="posts/onereason.html">↗</a></div></div></article>
+            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>生成式推荐</span><time datetime="2026-07-15">2026.07.15</time></div><h3><a href="posts/recommendation-as-generation.html">Recommendation as Generation：生成用户想看的内容</a></h3><p>讨论推荐系统从内容选择向个性化内容生成扩展的技术路径。</p><div class="post-footer"><span>zzx</span><a href="posts/recommendation-as-generation.html">↗</a></div></div></article>
+            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>推荐系统</span><time datetime="2026-07-13">2026.07.13</time></div><h3><a href="posts/recommender-system-overview.html">一文了解推荐系统全貌</a></h3><p>系统梳理召回、排序、序列建模与生成式推荐的核心方法。</p><div class="post-footer"><span>zzx</span><a href="posts/recommender-system-overview.html">↗</a></div></div></article>
+            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>Semantic ID</span><time datetime="2026-07-10">2026.07.10</time></div><h3><a href="posts/resid-semantic-id.html">ReSID：从推荐系统视角重新设计语义 ID</a></h3><p>从任务对齐、量化目标与生成接口三个层面分析 Semantic ID。</p><div class="post-footer"><span>zzx</span><a href="posts/resid-semantic-id.html">↗</a></div></div></article>
+            <article class="post-card shell-card"><div class="post-copy"><div class="post-meta"><span>模型推理</span><time datetime="2026-07-04">2026.07.04</time></div><h3><a href="posts/onereason.html">OneReason 技术分析报告</a></h3><p>分析推荐模型的语义感知、推理机制及其训练目标。</p><div class="post-footer"><span>zzx</span><a href="posts/onereason.html">↗</a></div></div></article>
           </div>
         </section>
 
-        <section class="research-section reveal"><header class="feed-heading"><div><span class="section-kicker">RESEARCH</span><h2>研究方向</h2></div></header><div class="research-grid"><a class="research-card shell-card" href="writing.html?tag=generative"><div class="research-orb orb-violet">01</div><div><span>Generative Recommendation</span><h3>生成式推荐</h3><p>Semantic ID、生成式召回、生成式重排与内容生成。</p><b>查看 6 篇文章 →</b></div></a><a class="research-card shell-card" href="writing.html?tag=embodied"><div class="research-orb orb-cyan">02</div><div><span>Embodied Intelligence</span><h3>具身智能</h3><p>视觉语言动作模型、机器人学习与真实环境中的决策闭环。</p><b>研究地图建设中 →</b></div></a></div></section>
+        <section class="research-section reveal"><header class="feed-heading"><div><span class="section-kicker">RESEARCH AREAS</span><h2>研究方向</h2></div></header><div class="research-grid"><a class="research-card shell-card" href="writing.html?tag=generative"><div class="research-orb orb-violet">01</div><div><span>GENERATIVE RECOMMENDATION</span><h3>生成式推荐</h3><p>重点关注 Semantic ID、生成式召回、生成式排序与推荐内容生成。</p><b>查看相关研究文章 →</b></div></a><a class="research-card shell-card" href="writing.html?tag=embodied"><div class="research-orb orb-cyan">02</div><div><span>EMBODIED INTELLIGENCE</span><h3>具身智能</h3><p>重点关注视觉语言动作模型、机器人学习与真实环境决策。</p><b>查看研究方向 →</b></div></a></div></section>
+
+        <section class="publications-preview shell-card reveal"><div><span class="section-kicker">PUBLICATIONS</span><h2>论文成果</h2><p>当前暂无已公开发表的学术论文。后续成果将按照预印本、会议论文与期刊论文分类更新。</p></div><a class="button secondary" href="publications.html">查看论文页面 →</a></section>
       </div>
     </div>
   </main>
 
-  <footer class="site-footer site-shell shell-card"><div><a class="wordmark" href="./">zzx<span>.</span></a><p>论文、系统与工程。</p></div><div class="footer-links"><a href="writing.html">文章</a><a href="about.html">关于</a><a href="https://github.com/zzxAnthony">GitHub ↗</a><a href="https://www.zhihu.com/people/xiao-tai-yang-35-81/posts">知乎 ↗</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
+  <footer class="site-footer site-shell shell-card"><div><a class="wordmark" href="./">zzx<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="writing.html">文章</a><a href="publications.html">论文</a><a href="about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> zzx</p></footer>
 </body>
 </html>
