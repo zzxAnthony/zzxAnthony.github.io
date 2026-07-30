@@ -23,8 +23,260 @@
         <div class="article-meta"><span>序列建模</span><span>克西</span><time datetime="2026-05-26">2026.05.26</time><span>4 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2042617735583200218" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><h3>0. 写在前面</h3><p>这篇论文讨论的是 CTR 预估里的长期用户兴趣建模。它的关键词看起来很新：“Generative Long-term User Interest Modeling”，但它并不是用大语言模型生成推荐结果，也不是直接生成 item ID。它真正做的事情是：</p><blockquote> 用用户近期行为生成几个离散的兴趣分布，然后用这些分布去长期历史行为里查表召回，最后再和目标 item 做精排式融合。</blockquote><p>如果把传统长序列 CTR 方法理解成“拿目标 item 去历史行为里找相似行为”，那么 GenLI 的思路就是“先根据用户近期状态生成兴趣雷达图，再用这个雷达图去长历史里挑有代表性的行为”。</p><p>这篇论文最值得关注的不是某个复杂网络结构，而是它重新组织了长序列建模的计算路径。传统方法把检索中心放在 target item 上，GenLI 把检索中心先放回用户自己身上。</p><h3>1. 背景：CTR 预估为什么需要长序列兴趣建模</h3><p>CTR 预估要判断用户是否会点击某个候选 item。输入通常包括用户特征、目标 item 特征、上下文特征，以及用户历史行为。历史行为非常关键，因为它承载了用户偏好，代表了用户在一定时间的兴趣。</p><p>用户兴趣可以</p></div>
-      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+      <div class="article-body"><h3>0. 写在前面</h3>
+<p>这篇论文讨论的是 <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=CTR+%E9%A2%84%E4%BC%B0&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJDVFIg6aKE5LywIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1NjA0NjkyLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.98E2VN8pD8I21uhbuoTRApyThzkm2MFpUgNFKtDnNzw&amp;zhida_source=entity" target="_blank" rel="noreferrer">CTR 预估</a></span>里的长期用户兴趣建模。它的关键词看起来很新：“<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=Generative+Long-term+User+Interest+Modeling&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJHZW5lcmF0aXZlIExvbmctdGVybSBVc2VyIEludGVyZXN0IE1vZGVsaW5nIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1NjA0NjkyLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.Lozh-MeP8kCr4DkY0iIR4tGipFkLEn1eMlBwIp3Z_n8&amp;zhida_source=entity" target="_blank" rel="noreferrer">Generative Long-term User Interest Modeling</a></span>”，但它并不是用大语言模型生成推荐结果，也不是直接生成 item ID。它真正做的事情是：</p>
+<blockquote> 用用户近期行为生成几个离散的兴趣分布，然后用这些分布去长期历史行为里查表召回，最后再和目标 item 做<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E7%B2%BE%E6%8E%92&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLnsr7mjpIiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.PKv51YxwhKTH3FYBQLAUfecxdQ3WNNEjb5TigUSrd3Q&amp;zhida_source=entity" target="_blank" rel="noreferrer">精排</a></span>式融合。</blockquote>
+<p>如果把传统长序列 CTR 方法理解成“拿目标 item 去历史行为里找相似行为”，那么 GenLI 的思路就是“先根据用户近期状态生成兴趣雷达图，再用这个雷达图去长历史里挑有代表性的行为”。</p>
+<p>这篇论文最值得关注的不是某个<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E5%A4%8D%E6%9D%82%E7%BD%91%E7%BB%9C&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLlpI3mnYLnvZHnu5wiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.E3qD4hgDvBP9at4gyXTx3nponNmtk5FrTkgFdap7aqU&amp;zhida_source=entity" target="_blank" rel="noreferrer">复杂网络</a></span>结构，而是它重新组织了长序列建模的计算路径。传统方法把检索中心放在 target item 上，GenLI 把检索中心先放回用户自己身上。</p>
+<h3>1. 背景：CTR 预估为什么需要长序列兴趣建模</h3>
+<p>CTR 预估要判断用户是否会点击某个候选 item。输入通常包括用户特征、目标 item 特征、上下文特征，以及用户历史行为。历史行为非常关键，因为它承载了用户偏好，代表了用户在一定时间的兴趣。</p>
+<p>用户兴趣可以粗略分成两类：</p>
+<ol><li>短期兴趣：最近几次点击、浏览、加购等行为，反映当下意图。</li><li>长期兴趣：更长时间窗口内的历史行为，反映稳定偏好、消费习惯和多样兴趣。</li></ol>
+<p>只看短期兴趣会有一个问题：用户的当下行为可能很窄。例如用户最近在看火锅，但长期经常点咖啡、买电影票、看亲子套餐。如果候选 item 是咖啡券，只看最近火锅行为可能无法充分判断点击概率。</p>
+<p>但直接建模长期行为也很难。一个真实工业系统里，一个用户可能有几百甚至上千条历史行为。如果对每条行为都做复杂 attention，线上推理延迟和资源成本会非常高。所以长序列 CTR 模型通常要解决两个问题：</p>
+<ol><li>从大量历史行为中选出少量有用行为。</li><li>用较复杂模型对这些少量行为做精确建模。</li></ol>
+<p>这就产生了两阶段框架。</p>
+<h3>2. 传统两阶段框架：<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=GSU&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJHU1UiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.2df1vIIyY3HA4-JDCpCg6K1LcWaZSucOyepCiJYEPSE&amp;zhida_source=entity" target="_blank" rel="noreferrer">GSU</a></span> + <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=ESU&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJFU1UiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.5lS_Euf3RnzqvbaxZxqm1OiOCNhvy7FsXhbQlBoyDjM&amp;zhida_source=entity" target="_blank" rel="noreferrer">ESU</a></span></h3>
+<p>论文把现有长序列兴趣建模总结为一个常见范式：</p>
+<ol><li>GSU, General Search Unit：粗召回，从长期历史行为中选出 top-k 条与目标 item 相关的行为。</li><li>ESU, Exact Search Unit：精建模，用 attention 等机制聚合召回行为，生成长期兴趣特征。</li></ol>
+<p>这个框架的好处是显然的：不用对全量长序列做重模型，只对 GSU 选出的少量行为做 ESU。</p>
+<p>几类典型方法可以这样理解：</p>
+<table><tbody><tr><th>方法</th><th>GSU 粗召回思路</th><th>主要特点</th></tr><tr><td>SIM-hard</td><td>选择与目标 item 同类别的历史行为</td><td>简单快，但语义粗</td></tr><tr><td>SIM-soft</td><td>用 embedding inner product 选相似行为</td><td>比类别匹配细，但仍需逐条匹配</td></tr><tr><td>ETA</td><td>用 SimHash 后的 Hamming distance 检索</td><td>用哈希降低匹配成本</td></tr><tr><td>SDIM</td><td>用多轮哈希碰撞采样行为</td><td>进一步优化长序列采样</td></tr><tr><td>TWIN</td><td>GSU 与 ESU 使用一致的 <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=target+attention&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJ0YXJnZXQgYXR0ZW50aW9uIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1NjA0NjkyLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.0XVSom4By4Bpaj0YUmSz0o6PmmT6aPNdKwPPIUPTEgI&amp;zhida_source=entity" target="_blank" rel="noreferrer">target attention</a></span></td><td>减少两阶段相似度不一致问题</td></tr></tbody></table>
+<p>这些方法虽然实现不同，但大多有一个共同前提：历史行为是否重要，要看它和当前目标 item 是否相似。</p>
+<p>GenLI 正是要挑战这个前提。</p>
+<h3>3. 传统 target-centered GSU 的两个问题</h3>
+<p>论文认为，现有 GSU 主要存在两个问题。</p>
+<h3>3.1 问题一：只看目标相关兴趣，长期兴趣不完整</h3>
+<p>用户兴趣通常是多峰的。一个用户可能同时对外卖、酒店、电影、咖啡、亲子活动感兴趣。传统 GSU 如果只围绕目标 item 检索，就会只保留与目标 item 接近的那一部分历史行为。</p>
+<p>这会导致长期兴趣特征变窄。</p>
+<p>假设用户历史行为如下：</p>
+<div><pre><code class="language-text">咖啡 -&gt; 奶茶 -&gt; 儿童乐园 -&gt; 烧烤 -&gt; 火锅 -&gt; 电影票 -&gt; 亲子餐厅 -&gt; 咖啡</code></pre></div>
+<p>当前目标 item 是“火锅优惠券”。传统 target-centered GSU 大概率召回火锅、烧烤、餐饮相关行为。这样确实能建模目标相关兴趣，但用户对亲子、电影、咖啡的长期偏好会被弱化甚至丢掉。</p>
+<p>这些被丢掉的兴趣是否一定无用？未必。用户是否点击火锅券，可能不仅取决于“是否喜欢火锅”，还取决于当前生活场景、消费习惯、活动偏好、近期偏好迁移等更完整的兴趣结构。论文认为，只保留目标附近兴趣会让长期兴趣表示不完整且有偏。</p>
+<h3>3.2 问题二：逐条目标匹配成本随序列长度增长</h3>
+<p>传统 GSU 通常需要对每条历史行为计算一个分数：</p>
+<p><span class="math-inline">\(score_i = similarity(target_{item}, behavior_i)\)</span> </p>
+<p>无论 similarity 是 inner product、Hamming distance，还是 target attention，它都要遍历长序列。随着行为序列从 100 增加到 500、1000，线上成本会增长。</p>
+<p>更重要的是，这种 pairwise matching 只比较“目标 item”和“单条历史行为”，没有显式利用历史行为之间的交互信息。例如“连续看了火锅、烤肉、夜宵”比单独一条“火锅”更能说明用户当前餐饮偏好，但逐条匹配很难捕捉这种局部模式。</p>
+<p>所以论文提出：不要再只靠目标 item 对每条历史行为打分。先从短期行为生成用户当前兴趣分布，再让长期行为去这个分布里查自己的分数。</p>
+<h3>4. GenLI：三个模块进行建模</h3>
+<figure><div><img src="../assets/posts/genli-long-term-interest/01.jpg" alt="GenLI:长序列用户兴趣建模 配图 1" loading="lazy" decoding="async"></div></figure>
+<p>GenLI 由三个模块组成：</p>
+<ol><li><span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=IGM&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJJR00iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.Fm9-9nq-8J0so4fTNAAxYujAPYLtPbB3veI7nnHpq_U&amp;zhida_source=entity" target="_blank" rel="noreferrer">IGM</a></span>, Interest Generation Module：根据短期行为生成兴趣分布。</li><li><span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=BRM&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJCUk0iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.6BM_DrC9Zn56_Rs7DHa4Ro8___Pm1thpvF8Iz9ht3Ck&amp;zhida_source=entity" target="_blank" rel="noreferrer">BRM</a></span>, Behavior Retrieval Module：根据兴趣分布从长期历史行为中召回行为。</li><li><span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=IFM&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJJRk0iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.I_QMU3Vbm_EUo102wCjgnJyZP-wwgqsb2H2MDAf80gI&amp;zhida_source=entity" target="_blank" rel="noreferrer">IFM</a></span>, Interest Fusion Module：把召回行为与目标 item 交互融合，生成长期兴趣特征。</li></ol>
+<p>整体流程可以写成：</p>
+<div><pre><code class="language-text">短期行为序列
+  -&gt; IGM 生成隐式/显式/<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E7%9B%B8%E5%AF%B9%E5%85%B4%E8%B6%A3%E5%88%86%E5%B8%83&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLnm7jlr7nlhbTotqPliIbluIMiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.kgRx_l1DkrIN1gJ6n1Yj6QOZfPlaDrVPu7t3VnCyHnI&amp;zhida_source=entity" target="_blank" rel="noreferrer">相对兴趣分布</a></span>
+  -&gt; BRM 用兴趣分布给长期历史行为查表打分
+  -&gt; 每类兴趣分别召回 top-k 行为
+  -&gt; IFM 用目标 item attention 聚合召回行为
+  -&gt; gate 融合三类兴趣 embedding
+  -&gt; CTR MLP 输出点击概率</code></pre></div>
+<p>这里有一个非常关键的设计：IGM 和 BRM 阶段是 target-independent 的，也就是不依赖当前目标 item。目标 item 直到 IFM 阶段才进入。</p>
+<p>这不是说 GenLI 不做 <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=target-aware&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJ0YXJnZXQtYXdhcmUiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.HThfR8czwvJlCOqpbmBayko6BDqIXJp3rIIynmwGnIs&amp;zhida_source=entity" target="_blank" rel="noreferrer">target-aware</a></span> 建模，而是它把 target-aware 建模后移了：</p>
+<ol><li>召回阶段：先问“用户当前有哪些兴趣？”</li><li>融合阶段：再问“这些兴趣和当前目标 item 如何交互？”</li></ol>
+<p>这个拆分让 GenLI 同时获得了多样性和效率。</p>
+<h3>5. IGM 详解：如何生成用户兴趣分布</h3>
+<p>IGM 的输入是用户最近的 N 条行为。论文称这些为 short-term behaviors。这样设计的理由是：短期行为最能反映用户当前实时兴趣，而生成的兴趣分布又会用于筛选长期历史行为，因此它相当于用“当前状态”去激活“长期记忆”。</p>
+<h3>5.1 短期行为编码</h3>
+<p>每个行为先经过 embedding layer 得到低维向量。设短期行为 embedding 序列为：</p>
+<p><span class="math-inline">\(e_1, e_2, ..., e_N\)</span> </p>
+<p>这些 embedding 会作为 <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=multi-head+attention&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJtdWx0aS1oZWFkIGF0dGVudGlvbiIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NTYwNDY5MiwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.ZPaMlC-M-zHMor9_MxO9teZHFdqFe8BdWbTwLoelXQE&amp;zhida_source=entity" target="_blank" rel="noreferrer">multi-head attention</a></span> 的 key 和 value：</p>
+<p><span class="math-inline">\(K = V = [e_1; e_2; ...; e_N]\)</span> </p>
+<p>query 则有两类：</p>
+<ol><li>最新行为的 embedding，代表当前最直接的兴趣信号。</li><li>一个可学习 query，用来自动捕捉短期行为序列中的交互模式。</li></ol>
+<p>论文把这两类 query 拼接起来，再输入 MHA：</p>
+<p><span class="math-inline">\(Q = [e_latest, e_learnable] \\ h = MHA(Q, K, V)\)</span> </p>
+<p>这样得到的 <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=hidden+interest+embedding&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJoaWRkZW4gaW50ZXJlc3QgZW1iZWRkaW5nIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1NjA0NjkyLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.okX4zl48RIbaWCCYImuGjKDpMhfHCEu1ZuYyDQgBHVI&amp;zhida_source=entity" target="_blank" rel="noreferrer">hidden interest embedding</a></span> h 同时包含两种信息：</p>
+<ol><li>最新行为带来的即时意图。</li><li>短期行为之间的组合模式。</li></ol>
+<h3>5.2 从 hidden embedding 到离散分布</h3>
+<p>接着，IGM 用 MLP + softmax 生成一个长度为 M 的离散分布：</p>
+<p><span class="math-inline">\(p = softmax(MLP(h))\)</span> </p>
+<p>论文默认 M = 4096。这个分布不是 item vocabulary 上的完整分布，而是一个固定长度的兴趣分布表。长期行为会通过 ID % M 映射到表中某个位置，然后取对应概率作为分数。</p>
+<p>这一步是 GenLI 的关键抽象：模型不直接生成某个 item，而是生成一个可被历史行为查表的兴趣空间。</p>
+<h3>5.3 三类兴趣分布：隐式、显式、相对</h3>
+<p>GenLI 不只生成一个分布，而是生成三个分布，分别描述用户兴趣的不同侧面。</p>
+<h3><span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E6%98%BE%E5%BC%8F%E5%85%B4%E8%B6%A3%E5%88%86%E5%B8%83&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLmmL7lvI_lhbTotqPliIbluIMiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.RLz1oaJ5Ylz5wvPpZrDXgSj7gejWgRkBJxI3XKY9Jio&amp;zhida_source=entity" target="_blank" rel="noreferrer">显式兴趣分布</a></span> <span class="math-inline">\(p_E\)</span> </h3>
+<p>显式兴趣来自用户点击。点击是用户明确表达兴趣的行为，因此与 CTR 主任务关系最直接。</p>
+<p>训练显式兴趣分布时，论文使用点击 item 作为监督信号。直观地说，如果用户点击了某个 item，那么这个 item 映射到分布中的位置应该有更高概率：</p>
+<p><span class="math-inline">\(maximize \ log \ LOOKUP(clicked_{item}, p_E)\)</span> </p>
+<p>这相当于让分布学会“用户当前最可能主动选择什么”。</p>
+<h3><span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E9%9A%90%E5%BC%8F%E5%85%B4%E8%B6%A3%E5%88%86%E5%B8%83&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLpmpDlvI_lhbTotqPliIbluIMiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.FrgwpT3tg6iE-XkUPbd94gmuv0wXNsnPHeYtXbF2Zfg&amp;zhida_source=entity" target="_blank" rel="noreferrer">隐式兴趣分布</a></span> <span class="math-inline">\(p_I\)</span> </h3>
+<p>隐式兴趣来自曝光 item。曝光 item 是平台根据历史日志选择并展示给用户的内容，虽然用户不一定点击，但它仍然代表平台对用户偏好的某种估计。</p>
+<p>论文认为，隐式兴趣相对更稳定，能补充点击兴趣的短期性。点击行为更尖锐、更当前；曝光行为更宽泛、更平滑。</p>
+<p>训练隐式兴趣分布时，模型会提高曝光 item 在分布中的概率：</p>
+<p><span class="math-inline">\(maximize \ log \ LOOKUP(exposed_{item}, p_I)\)</span> </p>
+<p>工业<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E6%95%B0%E6%8D%AE%E9%9B%86&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLmlbDmja7pm4YiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.mle0-eDCTcSrIZ8u5SrARdhfEc591aVnU3Toxb5Tor8&amp;zhida_source=entity" target="_blank" rel="noreferrer">数据集</a></span>中有真实曝光日志，因此可以直接训练。公开数据集缺少曝光信息，论文用近期相似行为采样近似曝光 item。这一点是复现时需要注意的。</p>
+<h3>相对兴趣分布 <span class="math-inline">\(p_R\)</span> </h3>
+<p>相对兴趣分布由显式兴趣和隐式兴趣构造：</p>
+<p><span class="math-inline">\(p_R = softmax(p_E - p_I)\)</span> </p>
+<p>用户点击不是在真空中发生的，而是在一组被曝光内容中做选择。没有点击某个曝光 item，不一定代表完全没兴趣，可能只是相对另一个 item 不够感兴趣。</p>
+<p>因此， <span class="math-inline">\(p_E - p_I\)</span> 可以看作“用户真实点击兴趣”相对于“平台曝光推断兴趣”的偏移。它描述了用户当前选择偏好的变化方向。</p>
+<p>举个例子：</p>
+<div><pre><code class="language-text">平台认为用户可能喜欢：火锅、烧烤、奶茶
+用户实际点击更多：奶茶、咖啡</code></pre></div>
+<p>那么相对兴趣分布就会突出“用户当前从正餐向饮品偏移”的信号。这个信号未必能被单独的显式或隐式兴趣充分表达。</p>
+<h3>6. BRM 详解：为什么 lookup 能替代 pairwise matching</h3>
+<p>BRM 的任务是从长期历史行为中选出符合当前兴趣分布的行为。</p>
+<p>传统方法对每条行为做：</p>
+<p><span class="math-inline">\(score_i = similarity(target_{item}, behavior_i)\)</span> </p>
+<p>GenLI 做：</p>
+<p><span class="math-inline">\(index_i = ID(behavior_i) \% M \\ score_i = p[index_i]\)</span> </p>
+<p>这意味着每条历史行为不再和目标 item 逐条比较，而是通过 ID 映射到兴趣分布中的一个桶，然后取桶上的概率。</p>
+<h3>6.1 lookup 的本质：<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E5%93%88%E5%B8%8C%E5%8C%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLlk4jluIzljJYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.bcvpFxAo_1GaFziAYT72_5RD-ojY_gIIYNYVv51UBCs&amp;zhida_source=entity" target="_blank" rel="noreferrer">哈希化</a></span>的兴趣打分</h3>
+<p>ID % M 实际上是一个哈希映射。因为真实 item 数通常远大于 M，所以多个行为可能映射到同一个桶，存在碰撞。M 越大，碰撞越少，但分布维度越大。</p>
+<p>论文实验发现，M 增大时 AUC 会先提升后趋于稳定，最终选择 4096 作为折中。这说明 lookup 的效果确实受<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=2&amp;q=%E5%93%88%E5%B8%8C%E7%A2%B0%E6%92%9E&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLlk4jluIznorDmkp4iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.uBpJCuyfQuYhTmn3WLn231BVgYsqyhpXvvv1g4goeM4&amp;zhida_source=entity" target="_blank" rel="noreferrer">哈希碰撞</a></span>影响，但不需要无限增大分布维度。</p>
+<p>这个设计很像把“庞大的 item 空间”压缩到“较小的兴趣桶空间”。模型不是精确记住每个 item，而是学习哪些兴趣桶更符合用户当前状态。</p>
+<h3>6.2 每类兴趣分别召回</h3>
+<p>对于 <span class="math-inline">\(p_I、p_E、p_R\)</span> 三个分布，BRM 分别给长期行为打分，并各自取 top-k。</p>
+<p>假设 k = 20，那么最终得到：</p>
+<div><pre><code class="language-text">隐式兴趣召回 20 条
+显式兴趣召回 20 条
+相对兴趣召回 20 条
+总共 60 条</code></pre></div>
+<p>这样做比只用一个分布更稳，因为不同兴趣分布会激活长期行为中的不同部分。显式分布可能召回近期点击偏好相似行为，隐式分布可能召回稳定偏好行为，相对分布可能召回兴趣变化相关行为。</p>
+<h3>6.3 为什么它比目标相似召回更“完整”</h3>
+<p>传统 GSU 是 target-centered，只会问：</p>
+<div><pre><code class="language-text">这条历史行为像不像当前目标 item？</code></pre></div>
+<p>GenLI 的 BRM 问的是：</p>
+<div><pre><code class="language-text">这条历史行为是否符合用户当前的某类兴趣分布？</code></pre></div>
+<p>这两个问题不同。前者更适合召回目标附近行为，后者更适合召回用户兴趣结构中的代表性行为。GenLI 随后仍会在 IFM 阶段用目标 item 做 attention，因此它不是放弃目标相关性，而是把召回阶段从单一目标约束中释放出来。</p>
+<p>这也是论文说 GenLI 能提升兴趣多样性和完整性的原因。</p>
+<h3>7. IFM 详解：target-independent 召回后如何回到 CTR 任务</h3>
+<p>如果 GenLI 的召回阶段完全不看目标 item，会不会导致召回的行为和当前目标无关？论文的答案是：召回阶段先保证兴趣完整，融合阶段再引入目标相关性。</p>
+<p>IFM 的做法是对三类召回行为分别做 target attention。</p>
+<p>以隐式兴趣召回行为为例，设召回行为 embedding 为：</p>
+<p><span class="math-inline">\(e'_1, e'_2, ..., e'_k\)</span> </p>
+<p>将目标 <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=item+embedding&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJpdGVtIGVtYmVkZGluZyIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NTYwNDY5MiwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.6Ahsynt1ax_3ctkY5zwb12-_1WIQLlCAsR4Q46B1BM4&amp;zhida_source=entity" target="_blank" rel="noreferrer">item embedding</a></span> 作为 query，召回行为作为 key/value：</p>
+<p><span class="math-inline">\(z_I = MHA(target_{embedding}, retrieved_{behaviors}, retrieved_{behaviors})\)</span> </p>
+<p>显式兴趣和相对兴趣同理得到：</p>
+<p><span class="math-inline">\(z_E, z_R\)</span> </p>
+<p>然后拼接：</p>
+<p><span class="math-inline">\(z = concat(z_I, z_E, z_R)\)</span> </p>
+<p>最后通过 <span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=gate+%E6%9C%BA%E5%88%B6&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiJnYXRlIOacuuWItiIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NTYwNDY5MiwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.NsoZ2BN6qwWcoCP8FIeRZlDf-n6O1h01e84HmqVFLLk&amp;zhida_source=entity" target="_blank" rel="noreferrer">gate 机制</a></span>生成长期兴趣特征：</p>
+<p><span class="math-inline">\(g = sigmoid(MLP(z)) \\ x_{long} = (g * z) W\)</span> </p>
+<p>gate 的作用是动态调节不同兴趣信息的重要性。某些场景下显式兴趣更重要，某些场景下隐式兴趣更重要，某些场景下相对兴趣能提供额外修正。</p>
+<p>最终 CTR 输入包括：</p>
+<ol><li>GenLI 生成的长期兴趣特征。</li><li>短期兴趣特征。</li><li>其他 side information。</li><li>目标 item embedding。</li></ol>
+<p>再通过 MLP 输出点击概率。</p>
+<h3>8. 训练目标：主任务和生成任务<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E8%81%94%E5%90%88%E4%BC%98%E5%8C%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLogZTlkIjkvJjljJYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.JyXKtgaj9zO5CxORL-Mkgz5lJDOuAKdwGOCCdXzim1w&amp;zhida_source=entity" target="_blank" rel="noreferrer">联合优化</a></span></h3>
+<p>GenLI 是端到端训练的，loss 包括三部分：</p>
+<p><span class="math-inline">\(L = L_{CTR} + alpha * L_{implicit} + beta * L_{explicit}\)</span> </p>
+<p>其中：</p>
+<ol><li>L_CTR 是点击率二分类任务的<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BA%A4%E5%8F%89%E7%86%B5&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLkuqTlj4nnhrUiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.rGyjCYo5PXbrW8C5DSD8GVULp6xcckH06mPf7ZO16F4&amp;zhida_source=entity" target="_blank" rel="noreferrer">交叉熵</a></span>。</li><li>L_implicit 约束隐式兴趣分布提高曝光 item 概率。</li><li>L_explicit 约束显式兴趣分布提高点击 item 概率。</li></ol>
+<p>相对兴趣分布不是单独监督出来的，而是由 p_E 和 p_I 的差异构造出来。</p>
+<p>这个联合训练方式有两个好处：</p>
+<ol><li>兴趣分布不是离线规则生成，而是能随着 CTR 目标一起优化。</li><li>生成分布本身有点击和曝光监督，不完全依赖最终 CTR loss 的间接反馈。</li></ol>
+<h3>9. 复杂度：GenLI 的工程价值在哪里</h3>
+<p>论文的复杂度分析是理解 GenLI 工业价值的关键。</p>
+<p>设：</p>
+<div><pre><code class="language-text">L = 长期行为序列长度
+N = 短期行为长度
+R = 总召回行为数
+d = hidden dimension
+M = 兴趣分布维度</code></pre></div>
+<p>GenLI 的主要复杂度为：</p>
+<div><pre><code class="language-text">O(L + (N + R)d)</code></pre></div>
+<p>因为：</p>
+<ol><li>IGM 对短期<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E8%A1%8C%E4%B8%BA%E5%BB%BA%E6%A8%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLooYzkuLrlu7rmqKEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.f2XkIZmEqAE02aXXxOr8r8i6tvGVNkqlj-fVUCQKl9c&amp;zhida_source=entity" target="_blank" rel="noreferrer">行为建模</a></span>，成本约 O(Nd)。</li><li>BRM 对长期行为逐条 lookup，成本 O(L)。</li><li>IFM 对召回行为做 attention，成本约 O(Rd)。</li></ol>
+<p>当 N 和 R 都是较小常数时，整体接近 O(L)。而且这里的 O(L) 是非常轻的查表，不是逐条 inner product 或 attention。</p>
+<p>论文对比的单行为打分复杂度如下：</p>
+<table><tbody><tr><th>方法</th><th>单条行为打分方式</th><th>单行为复杂度</th></tr><tr><td>SIM</td><td>inner product</td><td>O(d)</td></tr><tr><td>ETA</td><td>Hamming distance</td><td>O(h)</td></tr><tr><td>SDIM</td><td>hash collision</td><td>O(h log d)</td></tr><tr><td>TWIN</td><td>target attention</td><td>O(d)</td></tr><tr><td>GenLI</td><td>distribution lookup</td><td>O(1)</td></tr></tbody></table>
+<p>所以 GenLI 的优势会随着历史行为长度增加而更明显。论文中的推理时间曲线也说明了这一点：序列越长，GenLI 相比 SIM 和 TWIN 的效率优势越突出。</p>
+<h3>10. 实验设置：论文怎么验证</h3>
+<p>论文用了两个公开数据集和一个美团工业数据集。</p>
+<table><tbody><tr><th>数据集</th><th>用户数</th><th>item 数</th><th>类别数</th><th>样本数</th></tr><tr><td>Amazon Book</td><td>75,053</td><td>358,367</td><td>1,583</td><td>150,016</td></tr><tr><td>Taobao</td><td>987,994</td><td>34,196,612</td><td>5,597</td><td>7,956,431</td></tr><tr><td>Industrial</td><td>240 million</td><td>1.1 million</td><td>160</td><td>1.1 billion</td></tr></tbody></table>
+<p>序列长度设置：</p>
+<ol><li>Amazon：长期行为长度 100，短期行为长度 10。</li><li>Taobao：长期行为长度 500，短期行为长度 100。</li><li>工业数据：长期行为长度 1000，短期行为长度 100。</li></ol>
+<p>模型设置里有几个重要点：</p>
+<ol><li>embedding 维度为 8。</li><li>GenLI 的兴趣分布维度 M = 4096。</li><li>MHA 使用 4 个 head，每个 head hidden dimension 为 8。</li><li>GenLI 每个兴趣分布召回 20 条，总召回数 60。</li><li>baseline 也召回 60 条，保证比较公平。</li><li>优化器 Adam，学习率 0.001，batch size 256。</li></ol>
+<p>评价指标：</p>
+<ol><li>离线实验用 AUC。</li><li>在线实验用 CTR gain 和 RPM gain。</li><li>效率用 batch 推理平均时间衡量，batch size 为 8192。</li></ol>
+<h3>11. 主实验结果：GenLI 准确率和效率都更好</h3>
+<p>公开数据集结果：</p>
+<table><tbody><tr><th>模型</th><th>Amazon AUC</th><th>Taobao AUC</th></tr><tr><td>DIN</td><td>0.7267</td><td>0.8893</td></tr><tr><td>Avg-Pooling-long</td><td>0.7353</td><td>0.8777</td></tr><tr><td>DIEN</td><td>0.7409</td><td>0.9352</td></tr><tr><td>SIM-hard</td><td>0.7455</td><td>0.9403</td></tr><tr><td>SIM-soft</td><td>0.7487</td><td>0.9418</td></tr><tr><td>ETA</td><td>0.7492</td><td>0.9438</td></tr><tr><td>SDIM</td><td>0.7429</td><td>0.9405</td></tr><tr><td>TWIN</td><td>0.7503</td><td>0.9449</td></tr><tr><td>GenLI</td><td>0.7564</td><td>0.9552</td></tr></tbody></table>
+<p>可以看到，GenLI 在 Amazon 上相比最强 baseline TWIN 提升 0.0061 AUC，在 Taobao 上提升 0.0103 AUC。CTR 任务里 0.001 的 AUC 提升都可能有业务意义，因此这个提升幅度相当可观。</p>
+<p>几个现象值得分析：</p>
+<p>第一，DIN 和 DIEN 整体弱于长序列方法。原因很直接，它们主要建模短期行为，不能充分利用长期兴趣。</p>
+<p>第二，Avg-Pooling-long 虽然使用了长序列，但效果并不好。简单平均会把大量无关行为和噪声混在一起，长期序列越长，噪声问题越明显。</p>
+<p>第三，两阶段模型普遍强于简单 pooling，说明“先检索再精建模”是长序列 CTR 的有效范式。</p>
+<p>第四，GenLI 超过所有两阶段 baseline，说明它的 target-independent 兴趣分布召回确实比单纯目标匹配召回更有效。</p>
+<p>工业数据集结果：</p>
+<table><tbody><tr><th>模型</th><th>AUC</th><th>推理时间 ms</th></tr><tr><td>Avg-Pooling-long</td><td>0.7424</td><td>2.8</td></tr><tr><td>SIM-hard</td><td>0.7437</td><td>5.6</td></tr><tr><td>SIM-soft</td><td>0.7432</td><td>6.8</td></tr><tr><td>TWIN</td><td>0.7441</td><td>7.9</td></tr><tr><td>GenLI</td><td>0.7463</td><td>4.6</td></tr></tbody></table>
+<p>这张表是全篇最有工业含义的结果。GenLI 的 AUC 高于 TWIN，同时推理时间从 7.9 ms 降到 4.6 ms。它不是单纯牺牲效果换效率，也不是单纯堆重模型换效果，而是在效果和效率之间取得了更好的折中。</p>
+<p>与 Avg-Pooling-long 相比，GenLI 慢一些，但 AUC 高很多；与 TWIN 相比，GenLI 更准且更快。这正是论文想证明的点。</p>
+<h3>12. 消融实验：收益到底来自哪里</h3>
+<h3>12.1 去掉 IGM 后性能大幅下降</h3>
+<p>消融结果：</p>
+<table><tbody><tr><th>变体</th><th>Amazon</th><th>Taobao</th></tr><tr><td>GenLI w/o IGM</td><td>0.7361</td><td>0.9227</td></tr><tr><td>GenLI w/o 隐式兴趣</td><td>0.7465</td><td>0.9413</td></tr><tr><td>GenLI w/o 显式兴趣</td><td>0.7400</td><td>0.9372</td></tr><tr><td>GenLI w/o 相对兴趣</td><td>0.7532</td><td>0.9526</td></tr><tr><td>GenLI</td><td>0.7564</td><td>0.9552</td></tr></tbody></table>
+<p>去掉 IGM 后下降最明显，Amazon 从 0.7564 掉到 0.7361，Taobao 从 0.9552 掉到 0.9227。说明 GenLI 的核心收益确实来自兴趣生成模块，而不是后面简单多加了 attention 或 gate。</p>
+<p>如果没有 IGM，BRM 近似随机选择行为，长期兴趣建模质量会显著下降。这也反过来证明：生成的兴趣分布确实能指导有效召回。</p>
+<h3>12.2 显式兴趣最关键，隐式兴趣也重要</h3>
+<p>去掉显式兴趣分布的下降比去掉隐式兴趣更大。原因很自然：CTR 任务最终预测点击，点击监督和主任务最一致，因此显式兴趣分布对点击概率最直接。</p>
+<p>但隐式兴趣也有明显贡献。曝光 item 虽然不是用户主动点击，但它反映平台对用户偏好的历史估计，可以提供更稳定、更宽泛的兴趣背景。</p>
+<p>相对兴趣贡献最小，但仍然有效。它更像是对“曝光但未必点击”和“最终点击”之间差异的补充建模，帮助模型捕捉兴趣迁移。</p>
+<h3>12.3 短期行为长度：越长越好，但有<span><a href="https://zhida.zhihu.com/search?content_id=275604692&amp;content_type=Article&amp;match_order=1&amp;q=%E8%BE%B9%E9%99%85%E6%94%B6%E7%9B%8A&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwODAsInEiOiLovrnpmYXmlLbnm4oiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU2MDQ2OTIsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.FhARNHERWxQ2xdtAR22zsHxOcWq0MvwXr9dQYfZERXg&amp;zhida_source=entity" target="_blank" rel="noreferrer">边际收益</a></span></h3>
+<p>论文还研究了 IGM 输入短期行为长度的影响。结果显示，短期行为长度增加时 AUC 提升，但到一定长度后收益趋缓。</p>
+<p>这说明：</p>
+<ol><li>更多短期行为能提供更丰富的实时兴趣交互模式。</li><li>但过长的短期序列会引入噪声和额外计算，收益不再明显。</li></ol>
+<p>所以 IGM 使用“近期一小段行为”是合理的。它不是要把全量长期行为都丢进生成器，而是用短期行为生成当前兴趣状态，再去长序列检索。</p>
+<h3>12.4 召回行为数 R：GenLI 在小预算下更有优势</h3>
+<p>论文比较了不同召回行为数下 SIM-soft、TWIN、GenLI 的表现。整体趋势是：R 增大时，各方法 AUC 都先上升后趋于平稳。</p>
+<p>这个现象很容易理解。召回行为太少，信息不足；召回行为增加，覆盖更多兴趣；但再继续增加，就会引入噪声且计算变重。</p>
+<p>更有意思的是，R 较小时 GenLI 相比 TWIN 的优势更大。当 R = 15 时，GenLI 在两个数据集上相比 TWIN 分别提升约 1.65% 和 1.62%；当 R = 75 时，提升变成约 0.88% 和 1.31%。</p>
+<p>这说明 GenLI 的强项在于“有限召回预算下选得更准”。如果召回数量足够大，所有方法都能覆盖更多历史行为，检索质量的重要性会下降。反过来，当线上延迟限制要求只能取少量行为时，GenLI 的价值更明显。</p>
+<h3>12.5 分布维度 M：哈希碰撞与效率的折中</h3>
+<p>兴趣分布维度 M 控制 lookup 表的长度。因为行为通过 ID % M 映射到分布位置，所以 M 越小，碰撞越多；M 越大，碰撞越少。</p>
+<p>实验显示，M 增大时 AUC 会略有提升，但随后趋于稳定。论文选择 4096，是因为它在效果和效率之间比较均衡。</p>
+<p>从工程角度看，这个超参很关键。如果业务 item 空间更大、兴趣更复杂，M 可能需要重新调；如果线上资源更紧，M 也可能需要压缩。</p>
+<h3>13. 在线 A/B：真正落地的证据</h3>
+<p>论文在美团外卖平台 30% 真实流量上进行了 6 天在线 A/B 测试。baseline 是线上服务中的强 CTR 模型。</p>
+<p>结果：</p>
+<table><tbody><tr><th>模型</th><th>CTR Gain</th><th>RPM Gain</th></tr><tr><td>Base</td><td>0</td><td>0</td></tr><tr><td>GenLI</td><td>+0.776%</td><td>+1.567%</td></tr></tbody></table>
+<p>RPM 是 Revenue Per Mille，代表每千次曝光收入。对广告系统来说，1.567% 的 RPM 提升是非常有业务价值的。</p>
+<p>这部分结果也说明，GenLI 的收益不是只存在于公开数据集或离线指标里，而是可以转化为线上收益。论文还提到该模型已经部署到真实广告系统中，服务数亿用户。</p>
+<h3>14. 和 TWIN 的关键区别</h3>
+<p>TWIN 是论文中最强的 baseline，因此值得单独比较。</p>
+<p>TWIN 的核心是让 GSU 和 ESU 使用一致的 target-behavior attention，解决两阶段检索和精排打分不一致的问题。它仍然是 target-centered：目标 item 参与历史行为打分。</p>
+<p>GenLI 则做了另一种拆分：</p>
+<table><tbody><tr><th>维度</th><th>TWIN</th><th>GenLI</th></tr><tr><td>召回中心</td><td>目标 item</td><td>用户兴趣分布</td></tr><tr><td>GSU 是否依赖目标</td><td>依赖</td><td>不依赖</td></tr><tr><td>单行为打分</td><td>target attention</td><td>distribution lookup</td></tr><tr><td>是否利用短期行为生成状态</td><td>不是核心</td><td>是核心</td></tr><tr><td>优势</td><td>target-aware 一致性强</td><td>多兴趣覆盖好，打分快</td></tr></tbody></table>
+<p>两者并不只是“谁的 attention 更好”的差异，而是检索范式不同。TWIN 强调目标与行为的一致匹配，GenLI 强调先生成用户兴趣状态，再从长期行为中激活相关记忆。</p>
+<h3>15. 这篇论文真正的创新点</h3>
+<p>我认为 GenLI 的创新可以概括成四点。</p>
+<p>第一，生成对象从 item ID 转为兴趣分布。直接生成 item ID 容易面临超大词表、稀疏性和效率问题，生成兴趣分布则更轻、更适合 CTR。</p>
+<p>第二，把长序列召回从 target-centered 改为 interest-centered。召回阶段先关注用户当前多类兴趣，而不是只围绕目标 item 找相似历史。</p>
+<p>第三，用 lookup 代替逐条匹配，把单行为打分复杂度降到 O(1)。这对长序列线上服务非常重要。</p>
+<p>第四，把显式、隐式、相对兴趣放在一个统一框架里。显式点击、隐式曝光、相对偏移分别对应用户兴趣的不同侧面，组合后比单一兴趣分布更完整。</p>
+<h3>16. 局限与可以继续改进的方向</h3>
+<p>GenLI 很有启发，但也不是没有问题。</p>
+<h3>16.1 ID % M 的哈希碰撞不可避免</h3>
+<p>lookup 机制高效，但 ID % M 会带来哈希碰撞。不同 item 可能落到同一个分布桶，导致分数共享。论文通过增大 M 缓解，但没有完全消除。</p>
+<p>一个可能改进方向是使用多哈希、多表 lookup，或者学习式 hash，将语义相近的 item 更合理地映射到相近兴趣桶。</p>
+<h3>16.2 隐式兴趣依赖曝光日志</h3>
+<p>工业系统一般有曝光日志，但很多公开数据集没有。论文在公开数据集上用近期相似 item 近似曝光 item，这会引入一定偏差。</p>
+<p>如果要复现或迁移到没有曝光日志的场景，需要重新设计隐式兴趣监督，例如用未点击候选、召回候选、session 内未选择 item 等替代信号。</p>
+<h3>16.3 短期行为质量会影响生成分布</h3>
+<p>IGM 依赖短期行为生成兴趣分布。如果用户近期行为很少、很噪，或者短期行为只是一次异常浏览，生成分布可能偏移。</p>
+<p>后续可以考虑多时间尺度生成：</p>
+<ol><li>session 级短期兴趣。</li><li>天级近期兴趣。</li><li>月级稳定兴趣。</li></ol>
+<p>然后再做多尺度分布融合。</p>
+<h3>16.4 目标 item 完全后置可能有利有弊</h3>
+<p>GenLI 在召回阶段不看目标 item，这提升了兴趣完整性，但也可能召回一部分与当前目标弱相关的行为。IFM 可以再用目标 item 做筛选，但召回预算有限时，这种无目标召回可能也会占用名额。</p>
+<p>一个自然扩展是混合召回：一部分行为由 GenLI 的兴趣分布召回，一部分行为由 target-centered GSU 召回，然后统一融合。这样可能同时保留多样兴趣和强目标相关兴趣。</p>
+<h3>17. GenLI 如何工作</h3>
+<p>假设用户长期历史行为是：</p>
+<div><pre><code class="language-text">咖啡、奶茶、火锅、亲子餐厅、电影票、烧烤、儿童乐园、咖啡、甜品、酒店</code></pre></div>
+<p>最近短期行为是：</p>
+<div><pre><code class="language-text">奶茶、甜品、咖啡</code></pre></div>
+<p>IGM 看到短期行为后，可能生成：</p>
+<ol><li>显式兴趣分布：饮品、甜品相关桶分数高。</li><li>隐式兴趣分布：平台长期判断用户对本地生活消费、餐饮、休闲有稳定兴趣。</li><li>相对兴趣分布：近期偏好从正餐转向饮品甜品。</li></ol>
+<p>BRM 用这三个分布去长期行为里查表，可能召回：</p>
+<ol><li>显式兴趣召回：咖啡、奶茶、甜品。</li><li>隐式兴趣召回：火锅、亲子餐厅、电影票。</li><li>相对兴趣召回：咖啡、甜品、酒店。</li></ol>
+<p>如果当前目标 item 是“下午茶套餐”，IFM 会用目标 item 对这些召回行为做 attention，最终可能更重视咖啡、奶茶、甜品；如果目标 item 是“亲子餐厅券”，IFM 又可能更重视亲子餐厅、儿童乐园和稳定本地生活偏好。</p>
+<p>这就是 GenLI 的精妙之处：召回阶段不被目标 item 过早限制，融合阶段再根据目标 item 动态选择。</p>
+<h3>18. 总结</h3>
+<p>GenLI 解决的是长序列 CTR 建模中的一个核心矛盾：历史越长，兴趣越丰富，但计算越贵、噪声越多。传统两阶段方法用 target-centered GSU 解决计算问题，却容易忽略用户潜在的多样兴趣。</p>
+<p>GenLI 的方案是：用短期行为生成隐式、显式、相对三类兴趣分布；用分布 lookup 从长期历史行为中高效召回；再用目标 item attention 和 gate 进行融合。这样既保留了长期兴趣的多样性，又把单行为打分复杂度降到了 O(1)。</p>
+<p>从结果看，GenLI 在公开数据集、工业数据集和线上 A/B 测试中都优于强 baseline。更重要的是，它提供了一种值得借鉴的建模范式：不要只问历史行为和目标 item 像不像，也要先问用户当前到底有哪些兴趣，再让长期历史为这些兴趣提供证据。</p></div><div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>

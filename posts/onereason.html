@@ -23,65 +23,40 @@
         <div class="article-meta"><span>模型推理</span><span>克西</span><time datetime="2026-07-04">2026.07.04</time><span>6 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2056780687726981663" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><h2>1. 论文概述</h2>
-<p>本文研究的是生成式推荐模型中的“推理能力”问题。已有 OneRec 系列模型已经证明，大规模预训练可以提升推荐效果，但直接套用大语言模型中的 Chain-of-Thought（CoT）并不一定有效：模型虽然会生成一段“思考过程”，但推荐结果未必优于不思考的直接生成模式。</p>
-<p>论文提出 OneReason，核心目标是让推荐模型真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点：</p>
-<ol>
-<li>感知能力：模型必须理解 itemic token 背后的语义，不能只把物品 token 当成离散 ID。</li>
-<li>认知能力：模型必须能把用户历史行为压缩成清晰的兴趣点，并判断兴趣如何演化到下一个推荐目标。</li>
-</ol>
-<p>因此，OneReason 的技术路线可以概括为：先做 item-token 与文本语义的深度对齐，再用结构化 CoT 训练推荐推理，最后通过面向推荐目标的强化学习提升 thinking 模式效果。</p>
-<h2>2. 核心思想</h2>
+      <div class="article-body"><h3>1. 论文概述</h3>
+<p>论文提出 <span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=OneReason&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiJPbmVSZWFzb24iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.lXQQK65KNxYm24WIT5VJMwiDS1D0_Pzuzb6P1cglxpw&amp;zhida_source=entity" target="_blank" rel="noreferrer">OneReason</a></span>，核心目标是让<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8E%A8%E8%8D%90%E6%A8%A1%E5%9E%8B&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLmjqjojZDmqKHlnosiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.oEAeB46UQNtDFdWIN55R3VzL0PXoR2g4mn5IhFPURn8&amp;zhida_source=entity" target="_blank" rel="noreferrer">推荐模型</a></span>真正具备“先理解用户和物品，再推理推荐结果”的能力。它认为推荐推理能否有效，关键取决于两点：</p>
+<ol><li>感知能力：模型必须理解 <span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=itemic+token&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiJpdGVtaWMgdG9rZW4iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.t7gnLE7fRc8pBABZxujMFonXCahtpnHW_cj-BQd9ifk&amp;zhida_source=entity" target="_blank" rel="noreferrer">itemic token</a></span> 背后的语义，不能只把物品 token 当成离散 ID。</li><li><span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AE%A4%E7%9F%A5%E8%83%BD%E5%8A%9B&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLorqTnn6Xog73lipsiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.AUSqddVX64lYgB_uPOWFqUG8oX9rc43zdUugLmcS3Sg&amp;zhida_source=entity" target="_blank" rel="noreferrer">认知能力</a></span>：模型必须能把用户历史行为压缩成清晰的兴趣点，并判断兴趣如何演化到下一个推荐目标。</li></ol>
+<p>因此，OneReason 的<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8A%80%E6%9C%AF%E8%B7%AF%E7%BA%BF&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLmioDmnK_ot6_nur8iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.ihz1oqUmjZ6u3DM-6QVlOO3wku5ZUEUbBQEPtV4F3j8&amp;zhida_source=entity" target="_blank" rel="noreferrer">技术路线</a></span>可以概括为：先做 item-token 与文本语义的深度对齐，再用结构化 <span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=CoT&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiJDb1QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.QTlYHR5FMDRUvM2t12C0InYyB1n43R_Hj8jXxl94Bfc&amp;zhida_source=entity" target="_blank" rel="noreferrer">CoT</a></span> 训练推荐推理，最后通过面向推荐目标的强化学习提升 thinking 模式效果。</p>
+<h3>2. 核心思想</h3>
 <p>传统生成式推荐把用户行为序列建模为 item token 的下一个 token 预测，本质上更像学习“行为转移规律”。这种方式有规模化优势，但缺少可解释的中间思考过程。</p>
 <p>OneReason 的判断是：推荐任务中的推理不是数学题式的严格演绎，而是溯因式推理。模型需要根据用户过往行为，假设用户可能的潜在兴趣，再判断哪些兴趣更可能延续、变化或转移。例如，用户近期看了装修材料、搜索了地板价格，又浏览了床品内容，模型需要推断其兴趣可能从“硬装成本”扩展到“整体家居布置”。</p>
 <p>所以，好的推荐 CoT 不应只是泛泛解释“用户喜欢这个”，而应包含三个步骤：</p>
-<ol>
-<li>用户画像抽象：提取长期稳定偏好、消费能力、内容偏好等软先验。</li>
-<li>兴趣扩展：从历史行为中找出若干有证据支撑的兴趣方向。</li>
-<li>转移判断：根据时效性、行为强度、领域匹配和上下文，选择最可能的下一兴趣。</li>
-</ol>
+<ol><li><span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E7%94%A8%E6%88%B7%E7%94%BB%E5%83%8F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLnlKjmiLfnlLvlg48iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.tM2YKiZyv26zGpKYRQT0aGM-Nmf-ZevvvvOHAkjZ-ZM&amp;zhida_source=entity" target="_blank" rel="noreferrer">用户画像</a></span>抽象：提取长期稳定偏好、消费能力、内容偏好等软先验。</li><li>兴趣扩展：从历史行为中找出若干有证据支撑的兴趣方向。</li><li>转移判断：根据<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E6%97%B6%E6%95%88%E6%80%A7&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLml7bmlYjmgKciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.DZIAc6djOWAsoZP552reC87oOx_hEBl2UjSuoAHPHwc&amp;zhida_source=entity" target="_blank" rel="noreferrer">时效性</a></span>、行为强度、领域匹配和上下文，选择最可能的下一兴趣。</li></ol>
 <p>这使推荐模型从“记住相似行为”转向“理解用户兴趣结构”。</p>
-<h2>3. 方法设计</h2>
+<h3>3. 方法设计</h3>
 <h3>3.1 预训练：建立 itemic token 的语义感知</h3>
 <p>OneReason 使用 itemic token 表示物品。每个物品由一个领域起始 token 和三个子 token 组成，例如：</p>
-<pre><code class="language-text">&lt;|video_begin|&gt;&lt;a_5028&gt;&lt;b_6733&gt;&lt;c_2559&gt;
-</code></pre>
-<p>这种表示紧凑，适合生成式推荐，但问题是 token 本身不天然具有语言语义。为此，论文设计了四个粒度的预训练数据：</p>
-<ol>
-<li>Token 粒度：学习单个子 token 或 token 前缀的语义。</li>
-<li>Item 粒度：学习完整 itemic pattern 与物品描述之间的双向映射。</li>
-<li>Relation 粒度：学习物品之间的关联与兴趣转移逻辑。</li>
-<li>User 粒度：学习用户画像、跨域行为序列和时间线中的兴趣变化。</li>
-</ol>
-<p>这一步的本质是让模型知道“这些离散 token 到底代表什么”，并让 item token 与自然语言处在可互相解释的语义空间中。</p>
+<div><pre><code class="language-text">&lt;|video_begin|&gt;&lt;a_5028&gt;&lt;b_6733&gt;&lt;c_2559&gt;</code></pre></div>
+<p>这种表示紧凑，适合生成式推荐，但问题是 token 本身不天然具有语言语义。为此，论文设计了四个<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E7%B2%92%E5%BA%A6&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLnspLluqYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.dDC5L3atRq_s-K4zqIaN1xIHyWjPw8VJsMkYy4cyXTQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">粒度</a></span>的预训练数据：</p>
+<ol><li>Token 粒度：学习单个子 token 或 token 前缀的语义。</li><li>Item 粒度：学习完整 itemic pattern 与物品描述之间的双向映射。</li><li>Relation 粒度：学习物品之间的关联与兴趣转移逻辑。</li><li>User 粒度：学习用户画像、跨域行为序列和时间线中的兴趣变化。</li></ol>
+<p>这一步的本质是让模型知道“这些离散 token 到底代表什么”，并让 item token 与自然语言处在可互相解释的<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%AD%E4%B9%89%E7%A9%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLor63kuYnnqbrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9._1WoX8gVRmFQkFL7MwSl6KPhwRD3oV_HiqqJWlLG_JI&amp;zhida_source=entity" target="_blank" rel="noreferrer">语义空间</a></span>中。</p>
 <h3>3.2 SFT：构造推荐认知能力</h3>
 <p>SFT 阶段围绕 R0 到 R3 四层能力展开：</p>
-<ol>
-<li>R0 Perception：理解物品 token 的语义，能生成描述或回答内容问题。</li>
-<li>R1 Derivation：理解物品到物品的关系，例如从一个视频推导出可能相关的商品或视频。</li>
-<li>R2 Evolution：理解用户兴趣如何随时间演化。</li>
-<li>R3 Recommendation：综合画像、历史行为和兴趣演化，生成推荐结果。</li>
-</ol>
+<ol><li>R0 Perception：理解物品 token 的语义，能生成描述或回答内容问题。</li><li>R1 Derivation：理解物品到物品的关系，例如从一个视频推导出可能相关的商品或视频。</li><li>R2 Evolution：理解用户兴趣如何随时间演化。</li><li>R3 Recommendation：综合画像、历史行为和兴趣演化，生成推荐结果。</li></ol>
 <p>其中 R3 是最关键的推荐 CoT。论文没有让模型直接对长历史做自由发挥，而是要求它先压缩信息，再推理转移方向。这种设计可以减少历史行为噪声，避免 CoT 变成长篇但无效的解释。</p>
 <h3>3.3 RL：先专门化，再统一</h3>
 <p>论文发现，直接在多业务混合数据上做强化学习时，thinking 模式不一定稳定优于 non-thinking 模式；但如果在单个领域内训练，thinking 的优势更明显。</p>
 <p>因此 OneReason 采用 specialize-then-unify 策略：</p>
-<ol>
-<li>先分别在视频、商品、广告、直播等领域做领域专门化 RL。</li>
-<li>再通过 RFT 或多教师蒸馏把各领域能力合并到统一模型中。</li>
-</ol>
+<ol><li>先分别在视频、商品、广告、直播等领域做领域专门化 RL。</li><li>再通过 <span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=RFT&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiJSRlQiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.fytRfT9uMG_M_DbOcSuxcNf_XUAFj6_QUEpJPDe1ScY&amp;zhida_source=entity" target="_blank" rel="noreferrer">RFT</a></span> 或多教师蒸馏把各领域能力合并到统一模型中。</li></ol>
 <p>强化学习的奖励不仅看是否命中真实 item，还考虑候选多样性。论文还区分 reasoning token 和 item token 的优化强度，避免推理部分和最终推荐 token 被同一种更新规则粗暴处理。</p>
-<h2>4. 实验结论</h2>
+<h3>4. 实验结论</h3>
 <p>实验结果表明，OneReason RFT 在跨域推荐上明显优于 Qwen3-8B、LC-Rec 以及 SFT 版本。在最终 RFT 模型中，thinking 模式在多个推荐任务上超过 non-thinking 模式，这是论文最重要的结果之一：结构化推理确实可以转化为推荐性能收益。</p>
 <p>论文还观察到一个有意思的现象：即使推理时不输出 CoT，只要训练阶段加入合适比例的 CoT 数据，non-thinking 推荐也可能提升。这说明 CoT 监督不仅教模型“怎么说出推理过程”，也可能把用户兴趣压缩、证据选择和转移判断能力写入模型参数中。不过论文也强调，CoT 不是越多越好，过多 CoT 会降低最终答案监督密度，并带来格式不匹配。</p>
-<p>在线部署方面，OneReason 采用 Fast-Slow Thinking 架构：慢速近线链路用 OneReason 生成高质量候选，快速在线链路继续使用实时推荐系统，并通过排序融合保证延迟可控。在线 A/B 实验中，OneReason 单独使用带来 Revenue +4.528%，OneReason for OneRec 带来 Revenue +4.636%，联合部署达到 Revenue +8.234%。</p>
-<h2>5. 技术价值与不足</h2>
-<p>OneReason 的主要价值在于，它把 LLM 中的推理范式改造成了适合推荐系统的形式。它没有简单照搬“让模型多想几步”，而是先解决 item token 的语义感知，再设计推荐专用的压缩与转移推理链，最后用面向推荐命中的 RL 对 thinking 模式进行强化。</p>
-<p>不过，该方法也存在成本和工程复杂度。首先，构造高质量 CoT、关系数据和兴趣演化数据依赖强 LLM 与大量规则过滤。其次，thinking 推理本身带来更高延迟，因此线上需要近线部署或蒸馏到快速模型。最后，论文虽然发现 CoT 监督能提升 non-thinking，但还不能严格区分收益来自“信息压缩”还是“真正推理”。</p>
-<h2>6. 总结</h2>
-<p>OneReason 的核心思想是：推荐模型要想真正“推理”，必须先能看懂 item token，再能把用户历史压缩成可操作的兴趣状态，并通过结构化 CoT 判断兴趣转移。它的贡献不只是提出一个新模型，而是给出了生成式推荐从规模化建模走向推理式推荐的一套完整训练和部署路径。</p>
-<p>简言之，OneReason 证明了推荐系统中的 reasoning 不能靠简单生成解释获得，而需要“语义对齐 + 结构化认知 + 推荐目标强化”三者共同作用。</p>
-<div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+<p>在线部署方面，OneReason 采用 <span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=Fast-Slow+Thinking&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiJGYXN0LVNsb3cgVGhpbmtpbmciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.SWSnRvPvxE5JjDADIezq3gt5qXpMETXCw4eU6FkTgLA&amp;zhida_source=entity" target="_blank" rel="noreferrer">Fast-Slow Thinking</a></span> 架构：慢速近线链路用 OneReason 生成高质量候选，快速在线链路继续使用实时<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8E%A8%E8%8D%90%E7%B3%BB%E7%BB%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLmjqjojZDns7vnu58iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.XTucRF84HsNuZ-Ce0WdptwZHI7z4Jz5EP4_JB2bVqf0&amp;zhida_source=entity" target="_blank" rel="noreferrer">推荐系统</a></span>，并通过排序融合保证延迟可控。在线 A/B 实验中，OneReason 单独使用带来 Revenue +4.528%，OneReason for OneRec 带来 Revenue +4.636%，联合部署达到 Revenue +8.234%。</p>
+<h3>5. 技术价值与不足</h3>
+<p>OneReason 的主要价值在于，它把 LLM 中的推理范式改造成了适合推荐系统的形式。它没有简单照搬“让模型多想几步”，而是先解决 item token 的语义感知，再设计推荐专用的压缩与转移<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8E%A8%E7%90%86%E9%93%BE&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLmjqjnkIbpk74iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.ik0MvYjc8jEaCpyMMMhCYm-4UW74AL07DN56v3VCHYI&amp;zhida_source=entity" target="_blank" rel="noreferrer">推理链</a></span>，最后用面向推荐命中的 RL 对 thinking 模式进行强化。</p>
+<p>不过，该方法也存在成本和工程复杂度。首先，构造高质量 CoT、关系数据和兴趣演化<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E6%95%B0%E6%8D%AE%E4%BE%9D%E8%B5%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLmlbDmja7kvp3otZYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.xcvDN4AD64bT9oFJ0AOsvCJ1FTOvWUdHtKyBsgT6vXo&amp;zhida_source=entity" target="_blank" rel="noreferrer">数据依赖</a></span>强 LLM 与大量规则过滤。其次，thinking 推理本身带来更高延迟，因此线上需要近线部署或蒸馏到快速模型。最后，论文虽然发现 CoT 监督能提升 non-thinking，但还不能严格区分收益来自“<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BF%A1%E6%81%AF%E5%8E%8B%E7%BC%A9&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLkv6Hmga_ljovnvKkiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.QG1DXKFnaj8e4N9qVHCsjmueokCoAYjp0fuHmAx24kM&amp;zhida_source=entity" target="_blank" rel="noreferrer">信息压缩</a></span>”还是“真正推理”。</p>
+<p>OneReason 的核心思想是：推荐模型要想真正“推理”，必须先能看懂 item token，再能把用户历史压缩成可操作的兴趣状态，并通过结构化 CoT 判断兴趣转移。简言之，OneReason 证明了推荐系统中的 <span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=2&amp;q=reasoning&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiJyZWFzb25pbmciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.tM9kSVSE8SXJODiHONrdldcUkXpzpwyKoOGWAgtjz7k&amp;zhida_source=entity" target="_blank" rel="noreferrer">reasoning</a></span> 不能靠简单生成解释获得，而需要“<span><a href="https://zhida.zhihu.com/search?content_id=278315314&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%AD%E4%B9%89%E5%AF%B9%E9%BD%90&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQwMTQsInEiOiLor63kuYnlr7npvZAiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzgzMTUzMTQsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.DZ0CdNXbjPVqFyuGASVcsKdvZGAWVoJNwF8cB8di26k&amp;zhida_source=entity" target="_blank" rel="noreferrer">语义对齐</a></span> + 结构化认知 + 推荐目标强化”三者共同作用。</p></div><div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>
