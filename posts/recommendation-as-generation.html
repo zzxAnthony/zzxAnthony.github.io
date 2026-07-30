@@ -23,44 +23,33 @@
         <div class="article-meta"><span>生成式推荐</span><span>克西</span><time datetime="2026-07-15">2026.07.15</time><span>15 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2060766562089440903" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><p>论文：Recommendation as Generation: Unifying Personalized Video Generation and Recommendation at Industrial Scale<br>作者：Yanhua Cheng, Bo Wang, Haotian Zhang, Xinyuan Gao 等<br>机构：Kuaishou Technology, Beihang University<br>arXiv：<a href="https://arxiv.org/abs/2606.25496">https://arxiv.org/abs/2606.25496</a><br>项目页：<a href="https://recommendation-as-generation.github.io/">https://recommendation-as-generation.github.io/</a></p>
-<h2>1. 这篇论文到底在讲什么</h2>
+      <div class="article-body"><figure><div><img src="../assets/posts/recommendation-as-generation/01.jpg" alt="Recommendation as Generation：生成用户想看的内容 配图 1" loading="lazy" decoding="async"></div></figure>
+<h2>1. 概述</h2>
 <p>传统短视频推荐系统的基本范式是：</p>
-<pre><code class="language-text">用户兴趣建模 -&gt; 从已有视频池中召回/排序 -&gt; 曝光给用户
-</code></pre>
-<p>即使模型从 DLRM 发展到生成式推荐模型 GRM，本质上也仍然是“从已有内容池里选”。GRM 可以把用户兴趣表示成 Semantic ID，甚至用自回归模型预测用户未来可能感兴趣的 SID，但最终通常还是拿这些 SID 去检索已有视频。</p>
-<p>这篇论文提出的 Recommendation-as-Generation，简称 RaG，野心更大：<strong>推荐系统不再只负责匹配已有内容，而是根据用户兴趣直接生成个性化视频</strong>。</p>
-<p>因此它的目标不是把“推荐”包装成“生成”，而是把推荐系统的输出空间从固定 item pool 扩展到可生成内容空间：</p>
-<pre><code class="language-text">用户行为与画像
+<div><pre><code class="language-text">用户兴趣建模 -&gt; 从已有视频池中召回/排序 -&gt; 曝光给用户</code></pre></div>
+<p>即使模型从 DLRM 发展到生成式推荐模型 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=GRM&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJHUk0iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.QeJ1wiEj91oSQ8Vbzw5UXgEUBLvl4P7TnYVCFAZjdnI&amp;zhida_source=entity" target="_blank" rel="noreferrer">GRM</a></span>，本质上也仍然是“从已有内容池里选”。GRM 可以把用户兴趣表示成 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=Semantic+ID&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJTZW1hbnRpYyBJRCIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTA5NjE5MywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0._16CEEK4kxD7Oo-TAZHVTsY5fMaNw7kemIjoP3OwIMg&amp;zhida_source=entity" target="_blank" rel="noreferrer">Semantic ID</a></span>，甚至用<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E8%87%AA%E5%9B%9E%E5%BD%92%E6%A8%A1%E5%9E%8B&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLoh6rlm57lvZLmqKHlnosiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.1Syc_cQjDZhh9nVWo-txgevhvEFinWNeoLdinjZBy4U&amp;zhida_source=entity" target="_blank" rel="noreferrer">自回归模型</a></span>预测用户未来可能感兴趣的 SID，但最终通常还是拿这些 SID 去检索已有视频。</p>
+<p>这篇论文提出的 Recommendation-as-Generation，简称 RaG：<b>推荐系统不再只负责匹配已有内容，而是根据用户兴趣直接生成<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E4%B8%AA%E6%80%A7%E5%8C%96%E8%A7%86%E9%A2%91&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLkuKrmgKfljJbop4bpopEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.hlKJJKdV9gNao33x4_ezQYG7rS-ouoI1aNlbCYZ2w64&amp;zhida_source=entity" target="_blank" rel="noreferrer">个性化视频</a></span></b>。</p>
+<p>因此它的目标是把推荐系统的输出空间从固定 item pool 扩展到可生成内容空间：</p>
+<div><pre><code class="language-text">用户行为与画像
 -&gt; 预测用户兴趣的离散语义表示
 -&gt; 生成面向该兴趣的视频生产指令
 -&gt; 调用视频、音频、特效工具生成个性化视频
--&gt; 用真实反馈继续优化推荐与生成
-</code></pre>
-<p>这是一种非常工业化的闭环：推荐模型决定“用户可能想看什么”，生成模型负责“把这个兴趣做成可消费的视频”，线上反馈再反过来约束下一轮兴趣建模和内容生成。</p>
-<h2>2. 为什么已有推荐范式不够</h2>
-<p>论文认为，现有推荐系统有一个根本瓶颈：<strong>内容池先于推荐存在</strong>。</p>
-<p>在传统系统里，用户兴趣再细，推荐模型也只能从现有视频中找一个相对匹配的结果。如果内容池里没有足够贴合的素材，模型只能退而求其次。这个问题在短视频和广告场景中尤其明显：</p>
-<ol>
-<li>用户兴趣非常动态，热点、场景、商品诉求都在快速变化。</li>
-<li>长尾兴趣很难被预先生产的视频覆盖。</li>
-<li>广告素材不仅要表达商品，还要匹配人群、风格、节奏和转化目标。</li>
-<li>同一个内容语义可能需要不同创意表达，例如温馨、冲击、专业、生活化。</li>
-</ol>
-<p>GRM 虽然已经把推荐建模成 SID 序列生成，但它通常仍然止步于“生成检索 key”。RaG 进一步问：既然模型已经能预测用户兴趣 SID，为什么不直接把 SID 解码成新视频？</p>
-<p>这就是论文标题里 “Recommendation as Generation” 的真正含义。</p>
-<h2>3. 总体架构：用 D-SIDs 打通推荐和生成</h2>
-<p>RaG 的核心接口是 Disentangled Semantic IDs，简称 D-SIDs。它把一个视频表示成两类离散 token：</p>
-<pre><code class="language-text">D-SIDs = [content SIDs; creative SIDs]
-</code></pre>
+-&gt; 用真实反馈继续优化推荐与生成</code></pre></div>
+<p>推荐模型决定“用户可能想看什么”，<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E7%94%9F%E6%88%90%E6%A8%A1%E5%9E%8B&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLnlJ_miJDmqKHlnosiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.R8wudzluRl1jg3Dd9MBM8HVP4nAdqN3a3DEAISxOvOk&amp;zhida_source=entity" target="_blank" rel="noreferrer">生成模型</a></span>负责“把这个兴趣做成可消费的视频”，线上反馈再反过来约束下一轮兴趣建模和内容生成。</p>
+<h3>2. 现有推荐范式的缺点</h3>
+<p>论文认为，现有推荐系统有一个根本瓶颈：<b>内容池先于推荐存在</b>。</p>
+<p>在传统系统里，用户兴趣再细，推荐模型也只能从现有视频中找一个相对匹配的结果。如果内容池里没有足够贴合的素材，模型只能退而求其次。这个问题在短视频和广告场景中尤其明显，所以本质上还是一种检索。</p>
+<ol><li>用户兴趣非常动态，热点、场景、商品诉求都在快速变化。</li><li>长尾兴趣很难被预先生产的视频覆盖。</li><li>广告素材不仅要表达商品，还要匹配人群、风格、节奏和转化目标。</li><li>同一个内容语义可能需要不同创意表达，例如温馨、冲击、专业、生活化。</li></ol>
+<p>GRM 虽然已经把推荐建模成 SID 序列生成，但它通常仍然止步于生成检索 key。既然模型已经能预测用户兴趣 SID，为什么不直接把 SID 解码成新视频？</p>
+<h3>3. 总体架构：用 D-SIDs 打通推荐和生成</h3>
+<figure><div><img src="../assets/posts/recommendation-as-generation/02.jpg" alt="Recommendation as Generation：生成用户想看的内容 配图 2" loading="lazy" decoding="async"></div></figure>
+<p>RaG 的核心接口是 Disentangled Semantic IDs，简称 D-SIDs。它把一个视频表示成两类<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=2&amp;q=%E7%A6%BB%E6%95%A3&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLnprvmlaMiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.iVS8h3yroDFP5aX3TAVR0v8mJZYykZB9L1IUGjOGT88&amp;zhida_source=entity" target="_blank" rel="noreferrer">离散</a></span> token：</p>
+<div><pre><code class="language-text">D-SIDs = [content SIDs; creative SIDs]</code></pre></div>
 <p>其中：</p>
-<ol>
-<li>content SIDs 表示内容语义，例如实体、主题、商品、场景。</li>
-<li>creative SIDs 表示创意语义，例如风格、节奏、氛围、镜头表达。</li>
-</ol>
-<p>这个设计非常关键。推荐系统关心的不只是“用户喜欢什么主题”，还包括“用户更吃哪种表达方式”。同样是母婴用品广告，有人偏好真实测评，有人偏好温馨亲子片段，有人偏好强促销信息。如果只用一个混合 SID 表示视频，内容与创意会互相干扰；拆成 content 和 creative 后，模型可以分别学习“兴趣对象”和“表达偏好”。</p>
+<ol><li>content SIDs 表示内容语义，例如实体、主题、商品、场景。</li><li>creative SIDs 表示创意语义，例如风格、节奏、氛围、镜头表达。</li></ol>
+<p><span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=5&amp;q=%E6%8E%A8%E8%8D%90%E7%B3%BB%E7%BB%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLmjqjojZDns7vnu58iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6NSwiemRfdG9rZW4iOm51bGx9.BGveWM1CPA6mShBOxy5pkO0UyYm6ZywRGmd4WvGIaXY&amp;zhida_source=entity" target="_blank" rel="noreferrer">推荐系统</a></span>关心的不只是“用户喜欢什么主题”，还包括“用户更吃哪种表达方式”。同样是母婴用品广告，有人偏好真实测评，有人偏好温馨亲子片段，有人偏好强促销信息。如果只用一个混合 SID 表示视频，内容与创意会互相干扰；拆成 content 和 creative 后，模型可以分别学习“兴趣对象”和“表达偏好”。</p>
 <p>完整链路可以概括为：</p>
-<pre><code class="language-text">历史视频 v
+<div><pre><code class="language-text">历史视频 v
 -&gt; Disentangled Semantic Video Encoder E(v)
 -&gt; content SIDs + creative SIDs
 
@@ -68,227 +57,101 @@
 -&gt; GRM 自回归预测用户未来兴趣 D-SIDs
 
 预测 D-SIDs + 商品/广告 metadata
--&gt; Instruction Model 生成 shot-level 视频生产指令
+-&gt; <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=Instruction+Model&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJJbnN0cnVjdGlvbiBNb2RlbCIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTA5NjE5MywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.tOOhBnSEBcTLspON9yTcPN7GcJo58BGeEIZmCPJKOvQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">Instruction Model</a></span> 生成 shot-level 视频生产指令
 
 生产指令
 -&gt; Video Generation Agents 执行视觉、音频、特效规划
--&gt; 个性化视频
-</code></pre>
-<p>从系统视角看，D-SIDs 是推荐和生成之间的“中间语言”。推荐模型不需要直接输出自然语言 prompt，视频生成模型也不需要理解原始用户行为日志，双方通过同一个离散语义空间协作。</p>
-<h2>4. D-SIDs：把内容语义和创意语义拆开</h2>
-<h3>4.1 多模态表示学习</h3>
-<p>论文基于 Qwen2.5-VL-7B-Instruct 构建视频编码器。对每个视频，系统先用内部 dense captioning 模型分别生成两种描述：</p>
-<pre><code class="language-text">content description: 描述实体、主题、商品、场景
-creative description: 描述风格、节奏、氛围、镜头语言
-</code></pre>
-<p>然后将视频视觉 token 和对应文本描述一起送入 VLM，取最后一层最后 token 的 hidden state，得到两个归一化表示：</p>
-<div class="math-display">\[z_{content}, z_{creative}\]</div>
+-&gt; 个性化视频</code></pre></div>
+<p>从系统视角看，D-SIDs 是推荐和生成之间的中间语言。推荐模型不需要直接输出自然语言 prompt，视频生成模型也不需要理解原始用户行为日志，双方通过同一个离散语义空间协作。</p>
+<h3>4. D-SIDs：把内容语义和创意语义拆开</h3>
+<h3>4.1 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E5%A4%9A%E6%A8%A1%E6%80%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLlpJrmqKHmgIEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.YWJtfRN5nzRkWQWQatqMvrnpVOw8k81C25j6bZa1Ju4&amp;zhida_source=entity" target="_blank" rel="noreferrer">多模态</a></span>表示学习</h3>
+<p>论文基于 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=Qwen2.5-VL-7B-Instruct&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJRd2VuMi41LVZMLTdCLUluc3RydWN0IiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc5MDk2MTkzLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.PXxFdCQoR0lueE2RFJHbE7OTW_6RAg2SGN8NpdDpqXA&amp;zhida_source=entity" target="_blank" rel="noreferrer">Qwen2.5-VL-7B-Instruct</a></span> 构建视频编码器。对每个视频，系统先用内部 dense captioning 模型分别生成两种描述：</p>
+<div><pre><code class="language-text">content description: 描述实体、主题、商品、场景
+creative description: 描述风格、节奏、氛围、<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E9%95%9C%E5%A4%B4%E8%AF%AD%E8%A8%80&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLplZzlpLTor63oqIAiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.vsxeNtxq4QoqF42DcCJowmu0EtDP7drCddyi_-QIQRw&amp;zhida_source=entity" target="_blank" rel="noreferrer">镜头语言</a></span></code></pre></div>
+<p>然后将视频视觉 token 和对应文本描述一起送入 VLM，取最后一层最后 token 的 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=hidden+state&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJoaWRkZW4gc3RhdGUiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.53BTr21MFc9vKjyulfeFIfynl0p2Funcu5Ic6mjvhkY&amp;zhida_source=entity" target="_blank" rel="noreferrer">hidden state</a></span>，得到两个<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E5%BD%92%E4%B8%80%E5%8C%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLlvZLkuIDljJYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.w5HwFjVUeenW8f_RV1pwyFn2fEZSRsK77U-xObGnpBU&amp;zhida_source=entity" target="_blank" rel="noreferrer">归一化</a></span>表示：</p>
+<p><span class="math-display">\[z_{content}, z_{creative}\]</span></p>
 <p>训练目标由三部分组成：</p>
-<ol>
-<li>content 表示的对比学习损失。</li>
-<li>creative 表示的对比学习损失。</li>
-<li>content 与 creative 的正交约束，减少两种因素互相泄漏。</li>
-</ol>
-<p>可以把它理解成一个 factorized representation learning 问题：同一个视频被投影到两个语义空间，一个解释“拍的是什么”，一个解释“怎么拍”。</p>
+<ol><li>content 表示的对比学习损失。</li><li>creative 表示的对比学习损失。</li><li>content 与 creative 的<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E6%AD%A3%E4%BA%A4%E7%BA%A6%E6%9D%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLmraPkuqTnuqbmnZ8iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.1i3XXOh-AQbj7lvv8iI9UmMz-cfM6CyR69Nc2xzX9Js&amp;zhida_source=entity" target="_blank" rel="noreferrer">正交约束</a></span>，减少两种因素互相泄漏。</li></ol>
+<p>可以把它理解成一个 factorized representation learning 问题：同一个视频被投影到两个<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=2&amp;q=%E8%AF%AD%E4%B9%89%E7%A9%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLor63kuYnnqbrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.ZIrWppO6dgOc1ByD8LJK95YRINo7IEqxbXPXFV5THLE&amp;zhida_source=entity" target="_blank" rel="noreferrer">语义空间</a></span>，一个解释“拍的是什么”，一个解释“怎么拍”。</p>
 <h3>4.2 离散量化</h3>
-<p>得到连续表示后，论文对 content 和 creative 表示分别做 RQ-KMeans 残差量化。每一类表示都有独立 codebook，每层 8192 个 code，最终拼接成 D-SIDs。</p>
+<p>得到连续表示后，论文对 content 和 creative 表示分别做 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=RQ-KMeans&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJSUS1LTWVhbnMiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.fNVmI9MSnZNNdKgkLjdqsb9wQS-q0clsUNx3oevqvIM&amp;zhida_source=entity" target="_blank" rel="noreferrer">RQ-KMeans</a></span> 残差量化。每一类表示都有独立 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=codebook&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJjb2RlYm9vayIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTA5NjE5MywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.JYnLMrsFaTeSRW5Dok-F9ATnejBCGzs8m3CB3vWGQu8&amp;zhida_source=entity" target="_blank" rel="noreferrer">codebook</a></span>，每层 8192 个 code，最终拼接成 D-SIDs。</p>
 <p>这一步的意义有两个：</p>
-<ol>
-<li>对推荐模型友好：GRM 可以像语言模型一样自回归预测 SID token。</li>
-<li>对生成模型友好：SID 保留了可控语义，可以再被 Instruction Model 解码成生产指令。</li>
-</ol>
-<p>实验中，D-SIDs 在语义检索和离散化质量上都明显优于基线。R@1 达到 0.896，高于 Qwen2.5-VL-7B 的 0.769；量化 collision rate 降到 2.62%，而 QARM 是 18.24%。这说明解耦后的 SID 不只是概念漂亮，确实降低了离散编码冲突。</p>
-<h2>5. GRM：预测用户未来兴趣的 D-SIDs</h2>
-<p>论文把推荐部分建模为标准自回归序列预测：</p>
-<div class="math-display">\[p(D\text{-}SIDs \mid c_{user}) = \prod_{t=1}^{2L} p(s_t \mid s_{&lt;t}, c_{user})\]</div>
+<ol><li>对推荐模型友好：GRM 可以像语言模型一样自回归预测 SID token。</li><li>对生成模型友好：SID 保留了可控语义，可以再被 Instruction Model 解码成生产指令。</li></ol>
+<p>实验中，D-SIDs 在语义检索和<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E7%A6%BB%E6%95%A3%E5%8C%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLnprvmlaPljJYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.X3nRXlmUCkA9M-OUY15HXFgcCsE2GZ2OHlbwJGLSvBo&amp;zhida_source=entity" target="_blank" rel="noreferrer">离散化</a></span>质量上都明显优于基线。R@1 达到 0.896，高于 Qwen2.5-VL-7B 的 0.769；量化 collision rate 降到 2.62%，而 QARM 是 18.24%。这说明解耦后的 SID 不只是概念漂亮，确实降低了<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E7%A6%BB%E6%95%A3%E7%BC%96%E7%A0%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLnprvmlaPnvJbnoIEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.1f_hhVCnLVTFOzJfDLCThXDXiqX0pnsCYYHGpaPxhXk&amp;zhida_source=entity" target="_blank" rel="noreferrer">离散编码</a></span>冲突。</p>
+<h3>5. GRM：预测用户未来兴趣的 D-SIDs</h3>
+<p>论文把推荐部分建模为标准<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E8%87%AA%E5%9B%9E%E5%BD%92%E5%BA%8F%E5%88%97&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLoh6rlm57lvZLluo_liJciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.rkjBHbqlsKTb-RD6dM3cg740-3EjNXILLkRIGPEXtfg&amp;zhida_source=entity" target="_blank" rel="noreferrer">自回归序列</a></span>预测：</p>
+<p><span class="math-display">\[p(D\text{-}SIDs \mid c_{user}) = \prod_{t=1}^{2L} p(s_t \mid s_{&lt;t}, c_{user})\]</span></p>
 <p>这里的用户上下文包括画像、历史交互、曝光、点击、观看时长、转化等行为信号。GRM 输出的不再是某个 item ID，而是一段 D-SIDs，代表用户下一阶段可能感兴趣的内容语义和创意语义。</p>
-<p>和普通生成式推荐最大的区别在于：<strong>RaG 不把预测出来的 SID 只当作检索 key，而是把它当作可生成内容的目标语义</strong>。</p>
+<p>和普通生成式推荐最大的区别在于：<b>RaG 不把预测出来的 SID 只当作检索 key，而是把它当作可生成内容的目标语义</b>。</p>
 <p>这使得 GRM 的角色从“候选生成器”变成“兴趣规格生成器”。它生成的是未来内容应该满足的语义条件，而不是某个已经存在的视频。</p>
-<h2>6. Instruction Model：把离散兴趣翻译成视频脚本</h2>
+<h3>6. Instruction Model：把离散兴趣翻译成视频脚本</h3>
 <p>D-SIDs 虽然适合推荐模型预测，但不能直接喂给视频生成工具。视频生产需要更明确的指令，例如：</p>
-<ol>
-<li>镜头里出现什么主体。</li>
-<li>场景如何切换。</li>
-<li>节奏是快还是慢。</li>
-<li>是否需要字幕、贴纸、行动按钮。</li>
-<li>广告商品如何自然露出。</li>
-</ol>
+<ol><li>镜头里出现什么主体。</li><li>场景如何切换。</li><li>节奏是快还是慢。</li><li>是否需要字幕、贴纸、行动按钮。</li><li>广告商品如何自然露出。</li></ol>
 <p>因此论文引入 Instruction Model，简称 IM。IM 的任务是：</p>
-<pre><code class="language-text">D-SIDs + optional metadata -&gt; shot-level production instructions
-</code></pre>
+<div><pre><code class="language-text">D-SIDs + optional metadata -&gt; shot-level production instructions</code></pre></div>
 <p>广告场景中 metadata 很重要，因为生成视频不能只符合用户兴趣，还要表达具体商品与营销主题。没有 metadata 时，模型只根据 D-SIDs 生成泛内容指令。</p>
-<p>训练数据来自 Gemini 2.5 Pro 蒸馏。由于没有现成的 “视频-D-SIDs-拍摄脚本” 数据集，论文先对视频抽取 D-SIDs，再用强多模态教师模型生成 shot-level 脚本作为监督。IM 本身用 Qwen3-8B，将 D-SIDs 通过 reverse RQ-KMeans 还原成连续 embedding，再经过 projector 接到 LLM 输入空间。</p>
+<p>训练数据来自 Gemini 2.5 Pro 蒸馏。由于没有现成的 “视频-D-SIDs-拍摄脚本” <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E6%95%B0%E6%8D%AE%E9%9B%86&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLmlbDmja7pm4YiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.N57DWLCvVpt0SBCIlxxbAE6h0TOikKL_LEk3kvV9MvM&amp;zhida_source=entity" target="_blank" rel="noreferrer">数据集</a></span>，论文先对视频抽取 D-SIDs，再用强多模态教师模型生成 shot-level 脚本作为监督。IM 本身用 Qwen3-8B，将 D-SIDs 通过 reverse RQ-KMeans 还原成连续 embedding，再经过 projector 接到 LLM 输入空间。</p>
 <p>训练分三阶段：</p>
-<ol>
-<li>冻结 LLM，只训练 projector，让 D-SIDs embedding 对齐语言空间。</li>
-<li>联合微调 projector 和 LLM，提高脚本生成质量。</li>
-<li>用后续奖励学习继续优化。</li>
-</ol>
+<ol><li>冻结 LLM，只训练 projector，让 D-SIDs embedding 对齐语言空间。</li><li>联合微调 projector 和 LLM，提高脚本生成质量。</li><li>用后续奖励学习继续优化。</li></ol>
 <p>从结果看，IM 的 decoding fidelity 随数据和模型规模提升：8B + 100K 样本为 0.7760，8B + 1M 样本为 0.8096，32B + 1M 样本为 0.8212。论文最终选择 8B + 1M 作为默认配置，显然是在线成本和效果之间的折中。</p>
-<h2>7. Video Generation Agents：不是一个大模型一把梭</h2>
-<p>论文没有用一个 monolithic video generator 直接生成最终视频，而是设计了 Video Generation Agents，简称 VGAs。原因很现实：工业视频生产不是单纯“文本到视频”，而是一个分层、多工具、多模态协作过程。</p>
+<h3>7. Video Generation Agents</h3>
+<p>论文没有用一个 monolithic video generator 直接生成最终视频，而是设计了 Video Generation Agents，简称 VGAs。原因很现实：工业视频生产不是单纯文本到视频，而是一个分层、多工具、多模态协作过程。</p>
 <p>VGAs 包含三个角色：</p>
-<ol>
-<li>Visual Planning Agent：做视觉规划，输出分镜、场景片段、布局和时间边界。</li>
-<li>Audio Alignment Agent：做语音、音乐和画面节奏对齐。</li>
-<li>Artistic Effect Enhancement Agent：做字幕、转场、贴纸、行动按钮等后期增强。</li>
-</ol>
-<p>三者共享一个 Qwen2.5-32B backbone，不是三个独立模型。角色差异来自：</p>
-<ol>
-<li>不同 role prompt。</li>
-<li>不同可访问工具集合。</li>
-<li>已有上游 agent 输出组成的上下文。</li>
-</ol>
+<ol><li>Visual Planning Agent：做<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E8%A7%86%E8%A7%89%E8%A7%84%E5%88%92&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLop4bop4nop4TliJIiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.spnAtl73DLEQKwwxTXBd01DTaBOQbojGJO-rQUzkrhc&amp;zhida_source=entity" target="_blank" rel="noreferrer">视觉规划</a></span>，输出<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E5%88%86%E9%95%9C&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLliIbplZwiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.RtdBF-n6Xg6pnVwnoyO4pNtdHKUE9IdC-DSpZGNhwK0&amp;zhida_source=entity" target="_blank" rel="noreferrer">分镜</a></span>、场景片段、布局和时间边界。</li><li>Audio Alignment Agent：做语音、音乐和画面节奏对齐。</li><li>Artistic Effect Enhancement Agent：做字幕、转场、贴纸、行动按钮等后期增强。</li></ol>
+<p>三者共享一个 Qwen2.5-32B backbone。角色差异来自：</p>
+<ol><li>不同 role prompt。</li><li>不同可访问工具集合。</li><li>已有上游 agent 输出组成的上下文。</li></ol>
 <p>状态可以简化理解为：</p>
-<pre><code class="language-text">S_t = [视频生产指令; 工具描述; 前面 agent 的输出; 当前角色 prompt]
-</code></pre>
+<div><pre><code class="language-text">S_t = [视频生产指令; 工具描述; 前面 agent 的输出; 当前角色 prompt]</code></pre></div>
 <p>这个设计有两个工程好处。</p>
 <p>第一，跨模态生产更符合依赖关系。视觉规划先决定叙事和镜头，音频和特效再跟随视觉状态对齐。</p>
 <p>第二，append-only 状态天然支持 KV-cache 复用。由于 agent 顺序执行，前面生成的 token 可以留在 cache 里，下游 agent 只需要额外编码自己的 role prompt，从而降低推理开销。</p>
 <p>VGAs 还有一个 bounded reflection loop，遵循 Observe -&gt; Think -&gt; Act，最多两轮。这个限制很重要：无限反思在 demo 里好看，在工业推荐里会把延迟打爆。</p>
-<h2>8. SCRL：把质量、兴趣对齐和真实反馈放进同一个优化框架</h2>
-<p>RaG 的训练闭环叫 Synergistic Cross-Domain Reward Learning，简称 SCRL。它包含三类奖励。</p>
+<h3>8. SCRL：把质量、兴趣对齐和真实反馈放进同一个优化框架</h3>
+<p>RaG 的训练闭环叫 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=Synergistic+Cross-Domain+Reward+Learning&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJTeW5lcmdpc3RpYyBDcm9zcy1Eb21haW4gUmV3YXJkIExlYXJuaW5nIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc5MDk2MTkzLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.g-A9ois6Y7-ca7TwodbbxbVD8c2OTRR8vDMMnVjdfv0&amp;zhida_source=entity" target="_blank" rel="noreferrer">Synergistic Cross-Domain Reward Learning</a></span>，简称 SCRL。它包含三类奖励。</p>
 <p>第一类是视频质量奖励：</p>
-<pre><code class="language-text">R_quality = R_visual + R_audio + R_effect
-</code></pre>
-<p>分别衡量视觉质量、音画一致性、特效与画面对齐。</p>
+<div><pre><code class="language-text">R_quality = R_visual + R_audio + R_effect</code></pre></div>
+<p>分别衡量<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E8%A7%86%E8%A7%89%E8%B4%A8%E9%87%8F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLop4bop4notKjph48iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.o61cqxYO66ywVMtZTxoUoMI4KORCRqLeoxm-uhRaCxc&amp;zhida_source=entity" target="_blank" rel="noreferrer">视觉质量</a></span>、音画一致性、特效与画面对齐。</p>
 <p>第二类是兴趣对齐奖励：</p>
-<pre><code class="language-text">R_align = R_instr-align + R_rep-align
-</code></pre>
+<div><pre><code class="language-text">R_align = R_instr-align + R_rep-align</code></pre></div>
 <p>其中 <code>R_instr-align</code> 约束 D-SIDs 与生成指令一致，<code>R_rep-align</code> 约束 D-SIDs 与最终视频表示一致。</p>
 <p>第三类是用户反馈奖励：</p>
-<pre><code class="language-text">R_feedback = R_real + R_pred
-</code></pre>
+<div><pre><code class="language-text">R_feedback = R_real + R_pred</code></pre></div>
 <p><code>R_real</code> 来自真实点击、点赞、收藏、购买等行为，稀疏但可信；<code>R_pred</code> 来自线上排序模型预估，密集但有模型偏差。</p>
 <p>关键点在于，论文没有简单把三个奖励加权求和，而是把用户反馈设为主目标，把兴趣对齐和视频质量设为约束：</p>
-<div class="math-display">\[R(y_i) = R_{feedback}(y_i) - \sum_{c \in \{a,q\}} \lambda_c(t) \text{ReLU}(\tau_c - R_c(y_i))\]</div>
-<p>直观解释是：系统主要追求真实业务反馈，但如果兴趣对齐或视频质量低于阈值，就施加惩罚。阈值不是拍脑袋设置，而是根据 SFT baseline 的均值和方差校准；不同模块约束强度不同，VGAs 最严格，IM 次之，GRM 更宽松。</p>
+<p><span class="math-display">\[R(y_i) = R_{feedback}(y_i) - \sum_{c \in \{a,q\}} \lambda_c(t) \text{ReLU}(\tau_c - R_c(y_i))\]</span></p>
+<p>直观解释是：系统主要追求真实业务反馈，但如果兴趣对齐或视频质量低于阈值，就施加惩罚。<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=2&amp;q=%E9%98%88%E5%80%BC&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLpmIjlgLwiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.Bz3hUVhr5cvQiT_h3qfk5nZfMmd-MR7qx-IRtktlCvI&amp;zhida_source=entity" target="_blank" rel="noreferrer">阈值</a></span>不是拍脑袋设置，而是根据 SFT baseline 的均值和方差校准；不同模块约束强度不同，VGAs 最严格，IM 次之，GRM 更宽松。</p>
 <p>优化上使用 GDPO，做 group-relative advantage：</p>
-<div class="math-display">\[A_i = \frac{R(y_i) - \mu(Y)}{\sigma(Y) + \epsilon}\]</div>
+<p><span class="math-display">\[A_i = \frac{R(y_i) - \mu(Y)}{\sigma(Y) + \epsilon}\]</span></p>
 <p>这样可以缓解不同奖励尺度不一致的问题，也更适合多候选生成后的相对偏好优化。</p>
-<h2>9. 工业部署：实时预测兴趣，近线生成视频</h2>
-<p>RaG 不是实时端到端生成视频。论文非常坦诚地承认：视频生成太慢，不能直接放进在线推荐主链路。</p>
+<h3>9. 工业部署：实时预测兴趣，近线生成视频</h3>
+<p>论文表示：视频生成太慢，不能直接放进在线推荐主链路。</p>
 <p>它采用三段式部署：</p>
-<ol>
-<li>实时兴趣建模：GRM 在线低延迟预测用户兴趣 SIDs。</li>
-<li>近线视频生成：IM 和 VGAs 根据高价值 SIDs 批量生成个性化视频。</li>
-<li>延迟感知 serving：在线请求优先查 SID-indexed cache，命中则直接返回，未命中则用最近邻 SID 视频兜底，并异步补生成。</li>
-</ol>
+<ol><li>实时兴趣建模：GRM 在线低延迟预测用户兴趣 SIDs。</li><li>近线视频生成：IM 和 VGAs 根据高价值 SIDs 批量生成个性化视频。</li><li>延迟感知 serving：在线请求优先查 SID-indexed cache，命中则直接返回，未命中则用最近邻 SID 视频兜底，并异步补生成。</li></ol>
 <p>论文给出的线上延迟很能说明问题：</p>
-<table>
-<thead>
-<tr>
-<th>模块</th>
-<th>部署方式</th>
-<th>延迟</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>D-SIDs</td>
-<td>近线</td>
-<td>约 4s</td>
-</tr>
-<tr>
-<td>GRM</td>
-<td>在线</td>
-<td>约 100ms</td>
-</tr>
-<tr>
-<td>IM</td>
-<td>近线</td>
-<td>约 2.5s</td>
-</tr>
-<tr>
-<td>VGAs</td>
-<td>近线</td>
-<td>约 180s</td>
-</tr>
-</tbody></table>
-<p>所以 RaG 当前更准确的定位是：<strong>用推荐模型驱动近线内容生产，再把生成结果扩充到在线候选池</strong>。这不是缺点，反而是它能在 4 亿 DAU 级平台落地的关键。</p>
-<h2>10. 实验结果：收益来自哪里</h2>
-<p>线上 A/B 结果是这篇论文最有说服力的部分。以广告收入为指标：</p>
-<table>
-<thead>
-<tr>
-<th>方法</th>
-<th align="right">相对 DLRM baseline</th>
-<th align="right">相对 GRM baseline</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>GRM baseline</td>
-<td align="right">+3.526%</td>
-<td align="right">-</td>
-</tr>
-<tr>
-<td>GRM + D-SIDs</td>
-<td align="right">+4.460%</td>
-<td align="right">+0.902%</td>
-</tr>
-<tr>
-<td>Full RaG</td>
-<td align="right">+5.462%</td>
-<td align="right">+1.870%</td>
-</tr>
-</tbody></table>
+<table><tbody><tr><th>模块</th><th>部署方式</th><th>延迟</th></tr><tr><td>D-SIDs</td><td>近线</td><td>约 4s</td></tr><tr><td>GRM</td><td>在线</td><td>约 100ms</td></tr><tr><td>IM</td><td>近线</td><td>约 2.5s</td></tr><tr><td>VGAs</td><td>近线</td><td>约 180s</td></tr></tbody></table>
+<p>所以 RaG 当前更准确的定位是：<b>用推荐<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E6%A8%A1%E5%9E%8B%E9%A9%B1%E5%8A%A8&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLmqKHlnovpqbHliqgiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.oiMDCHs9OBH9K3Swmjrk065hL2Yk7K12JFNZqTC6pUg&amp;zhida_source=entity" target="_blank" rel="noreferrer">模型驱动</a></span>近线内容生产，再把生成结果扩充到在线候选池</b>。这不是缺点，反而是它能在 4 亿 DAU 级平台落地的关键。</p>
+<h3>10. 实验结果</h3>
+<p>以广告收入为指标：</p>
+<table><tbody><tr><th>方法</th><th>相对 DLRM baseline</th><th>相对 GRM baseline</th></tr><tr><td>GRM baseline</td><td>+3.526%</td><td>-</td></tr><tr><td>GRM + D-SIDs</td><td>+4.460%</td><td>+0.902%</td></tr><tr><td>Full RaG</td><td>+5.462%</td><td>+1.870%</td></tr></tbody></table>
 <p>这个结果可以拆成两层理解。</p>
 <p>第一，D-SIDs 本身就能增强生成式推荐。仅把普通 SID 换成内容/创意解耦的 D-SIDs，就能从 +3.526% 提升到 +4.460%。</p>
 <p>第二，真正从“检索”进入“生成”后，Full RaG 相比 GRM baseline 还有 +1.870% 收益。这说明生成出来的新视频不是只增加内容数量，而是带来了可观业务增量。</p>
 <p>离线实验也支持这个判断：</p>
-<ol>
-<li>D-SIDs 的 R@1/R@5/R@10 达到 0.896/0.985/0.994。</li>
-<li>D-SIDs collision rate 为 2.62%，明显低于 QARM 的 18.24%。</li>
-<li>VGAs 相比固定 workflow baseline，自动评分从 62.4/62.0 提升到 71.3/76.0。</li>
-<li>自动 GSB win rate 从 28.7% 提升到 70.1%。</li>
-<li>人工评测 win rate 从 34.4% 提升到 52.9%。</li>
-<li>加入兴趣对齐奖励后，Interest Alignment Score 从 0.707 提升到 0.828。</li>
-</ol>
-<p>这些数字共同说明：RaG 的收益不是单一模块带来的，而是 SID 表示、脚本生成、agentic 生产和奖励闭环叠加后的系统收益。</p>
-<h2>11. 这篇论文的技术价值</h2>
-<p>我认为这篇论文最重要的价值有三点。</p>
+<ol><li>D-SIDs 的 R@1/R@5/R@10 达到 0.896⁄0.985⁄0.994。</li><li>D-SIDs collision rate 为 2.62%，明显低于 QARM 的 18.24%。</li><li>VGAs 相比固定 workflow <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=6&amp;q=baseline&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJiYXNlbGluZSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTA5NjE5MywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjo2LCJ6ZF90b2tlbiI6bnVsbH0.a7OtT0r5Kr1BPxaE-K1fuzuK3AK0-CcKcGAoVIjbfvs&amp;zhida_source=entity" target="_blank" rel="noreferrer">baseline</a></span>，自动评分从 62.4⁄62.0 提升到 71.3⁄76.0。</li><li>自动 GSB <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=win+rate&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJ3aW4gcmF0ZSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTA5NjE5MywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.PjPAgDmWmlNSe_PuX5LQj7xVvar3oq3yA_Q8jY8JC-M&amp;zhida_source=entity" target="_blank" rel="noreferrer">win rate</a></span> 从 28.7% 提升到 70.1%。</li><li>人工评测 win rate 从 34.4% 提升到 52.9%。</li><li>加入兴趣对齐奖励后，Interest Alignment Score 从 0.707 提升到 0.828。</li></ol>
+<p>RaG 的收益不是单一模块带来的，而是 SID 表示、脚本生成、agentic 生产和奖励闭环叠加后的系统收益。</p>
+<h3>11. 技术创新</h3>
 <h3>11.1 把推荐输出从 item space 推向 content generation space</h3>
-<p>过去推荐系统优化的是“在已有候选中找最合适的”。RaG 改成“根据兴趣创造候选”。这会改变内容平台的供给逻辑：推荐不再只是分发系统，也参与内容生产。</p>
+<p>过去推荐<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E7%B3%BB%E7%BB%9F%E4%BC%98%E5%8C%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLns7vnu5_kvJjljJYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.FasFHLNegGkBsSLfFPY5f4TWwzBSJMr3cfIrs7gC9ts&amp;zhida_source=entity" target="_blank" rel="noreferrer">系统优化</a></span>的是“在已有候选中找最合适的”。RaG 改成“根据兴趣创造候选”。这会改变内容平台的供给逻辑：推荐不再只是分发系统，也参与内容生产。</p>
 <h3>11.2 D-SIDs 是一个很强的接口设计</h3>
 <p>推荐系统和视频生成模型之间最大的问题是语义接口不一致。用户行为日志太离散，prompt 太自然语言化，连续 embedding 又缺少可控性。D-SIDs 介于三者之间：</p>
-<ol>
-<li>对推荐模型是离散 token。</li>
-<li>对生成系统是可解码语义。</li>
-<li>对工程系统是可缓存、可索引、可近邻检索的 key。</li>
-</ol>
+<ol><li>对推荐模型是离散 token。</li><li>对生成系统是可解码语义。</li><li>对<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E5%B7%A5%E7%A8%8B%E7%B3%BB&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLlt6XnqIvns7siLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.RlGojXiElRUIqHyPwHDHyGfjqV97lveAjVon-Pg0jr8&amp;zhida_source=entity" target="_blank" rel="noreferrer">工程系</a></span>统是可缓存、可索引、可近邻检索的 key。</li></ol>
 <p>这个接口比“直接让 LLM 根据用户历史写 prompt”更可控，也比“只预测 item ID”更开放。</p>
-<h3>11.3 它给出了生成式推荐落地的现实答案</h3>
-<p>很多生成式推荐论文停留在离线 next item prediction。RaG 关心的是：</p>
-<ol>
-<li>怎么生成可用广告视频。</li>
-<li>怎么控制延迟。</li>
-<li>怎么接入真实反馈。</li>
-<li>怎么避免质量和转化目标互相打架。</li>
-</ol>
-<p>这让它更像一篇完整系统论文，而不是单模型论文。</p>
-<h2>12. 局限与风险</h2>
-<p>这篇论文也有明显局限。</p>
+<h3>12. 局限</h3>
 <p>第一，生成成本仍然很高。VGAs 约 180s 的延迟意味着它短期内不能实时按请求生成，只能近线扩充候选池。</p>
-<p>第二，奖励系统复杂，且存在 reward hacking 风险。尤其是 <code>R_pred</code> 来自排序模型，可能把排序模型偏差继续反馈给生成策略。</p>
+<p>第二，奖励系统复杂，且存在 <span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=reward+hacking&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiJyZXdhcmQgaGFja2luZyIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTA5NjE5MywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.0ozoNKuSsLRt-dGu7sWDvVeNsPa8FoITZ-jFdB047yQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">reward hacking</a></span> 风险。尤其是 <code>R_pred</code> 来自<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=2&amp;q=%E6%8E%92%E5%BA%8F%E6%A8%A1%E5%9E%8B&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLmjpLluo_mqKHlnosiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.VnASh9LANE_HnpREtL7NDg8asudSGROyOHCMpZkhnJQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">排序模型</a></span>，可能把排序模型偏差继续反馈给生成策略。</p>
 <p>第三，论文的场景主要是广告。广告天然有商品 metadata、转化目标和素材生产预算，因此更适合 RaG。把它迁移到普通内容推荐，收益和成本是否匹配还需要验证。</p>
-<p>第四，个性化生成会带来内容生态和安全问题。系统如果过度迎合细粒度兴趣，可能制造更强的信息茧房，也可能生成更难审核的长尾内容。</p>
-<p>第五，D-SIDs 的解耦质量很依赖 captioning model、VLM 和量化策略。如果 content/creative 没拆干净，下游 GRM 和 IM 都会继承这个表示噪声。</p>
-<h2>13. 和 OneRec、OneReason、ReSID 的关系</h2>
-<p>如果把最近几条生成式推荐路线放在一起看，可以得到一条很清楚的演进路径：</p>
-<pre><code class="language-text">OneRec: 用生成模型统一召回和排序，预测 item/SID
-ReSID: 从推荐原生视角重新设计 SID tokenizer
-OneReason: 让生成式推荐具备可解释的兴趣推理能力
-RaG: 把预测出的兴趣 SID 进一步解码成新内容
-</code></pre>
-<p>RaG 并不是替代前几条路线，而是站在它们之上，把“生成式推荐”推进到“生成式内容供给”。推荐模型从负责排序候选，变成负责定义内容生产方向。</p>
-<h2>14. 总结</h2>
-<p>RaG 的核心思想可以压缩成一句话：</p>
-<blockquote>
-<p>不要只从已有内容中寻找用户想看的东西，而要根据用户兴趣生成新的可消费内容。</p>
-</blockquote>
-<p>它用 D-SIDs 统一推荐和生成，用 Instruction Model 把离散兴趣翻译成视频脚本，用 VGAs 分工完成视觉、音频和特效生产，再用 SCRL/GDPO 把视频质量、兴趣对齐和真实反馈放进同一个优化闭环。</p>
-<p>从工程角度看，RaG 当前还不是实时个性化视频生成，而是“实时兴趣预测 + 近线视频生成 + 在线缓存服务”的混合架构。但这恰恰说明它不是纯概念系统，而是在工业约束下做出的可落地设计。</p>
-<p>这篇论文真正值得关注的地方，不只是 +1.870% 的广告收入提升，而是它指出了推荐系统未来可能承担的新角色：<strong>推荐不再只是分发内容，而是驱动内容生成本身</strong>。</p>
-<div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+<p>第四，个性化生成会带来<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E5%86%85%E5%AE%B9%E7%94%9F%E6%80%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLlhoXlrrnnlJ_mgIEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.NYIa5qxSAi8CfUjnWcybgzHdWSiJ2h149mhH-KtHTQU&amp;zhida_source=entity" target="_blank" rel="noreferrer">内容生态</a></span>和安全问题。系统如果过度迎合<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BB%86%E7%B2%92%E5%BA%A6&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLnu4bnspLluqYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.UNwXoqFaQvD47YNn5Lo0Nn9cEdkkFV3yEylb0uJTXFY&amp;zhida_source=entity" target="_blank" rel="noreferrer">细粒度</a></span>兴趣，可能制造更强的<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BF%A1%E6%81%AF%E8%8C%A7%E6%88%BF&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLkv6Hmga_ojKfmiL8iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.GBgYXFZZa-pZoxWVha4b0IW7Jt2SE42hS0RCJYbNRUk&amp;zhida_source=entity" target="_blank" rel="noreferrer">信息茧房</a></span>，也可能生成更难审核的长尾内容。</p>
+<p>第五，D-SIDs 的解耦质量很依赖 captioning model、VLM 和<span><a href="https://zhida.zhihu.com/search?content_id=279096193&amp;content_type=Article&amp;match_order=1&amp;q=%E9%87%8F%E5%8C%96%E7%AD%96%E7%95%A5&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM1NDcsInEiOiLph4_ljJbnrZbnlaUiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzkwOTYxOTMsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.9cDFmq09s4CiOh6DnGzre2hlY6FiwvTx9ouUYM-ujrw&amp;zhida_source=entity" target="_blank" rel="noreferrer">量化策略</a></span>。如果 content/creative 没拆干净，下游 GRM 和 IM 都会继承这个表示噪声。</p></div><div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>

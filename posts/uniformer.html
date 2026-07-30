@@ -23,239 +23,157 @@
         <div class="article-meta"><span>推荐系统</span><span>克西</span><time datetime="2026-07-26">2026.07.26</time><span>30 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2064668953616691365" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><p>论文：UniFormer: Efficient and Unified Model-Centric Scaling for Industrial Recommendation<br>作者：Bo Chen, Jinlong Jiao, Tijian Hu, Ruihao Zhang, Yanzhi Liu 等<br>机构：Kuaishou Technology<br>arXiv：<a href="https://arxiv.org/abs/2606.27058">https://arxiv.org/abs/2606.27058</a><br>HTML：<a href="https://arxiv.org/html/2606.27058v1">https://arxiv.org/html/2606.27058v1</a></p>
-<h2>1. 这篇论文到底在解决什么问题</h2>
-<p>UniFormer 讨论的是工业推荐排序模型的一个很现实的问题：<strong>推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。</strong></p>
+      <div class="article-body"><h2>1. 这篇论文在解决什么问题</h2>
+<p><span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=UniFormer&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJVbmlGb3JtZXIiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.SxIi4O5gUsa-x4YLSzyXLzVSavxYnBIAZsNnpbddFHE&amp;zhida_source=entity" target="_blank" rel="noreferrer">UniFormer</a></span> 讨论的是工业推荐排序模型的一个很现实的问题：<b>推荐模型已经进入大模型化阶段，但很多扩容方式仍然是“组件级”的，而不是“模型级”的。</b></p>
 <p>传统工业精排模型通常可以拆成几块：</p>
-<pre><code class="language-text">Embedding / Tokenization
+<div><pre><code class="language-text"><span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=Embedding&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJFbWJlZGRpbmciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.pZgRIwr0DykH-Z_QAFHpVbOrOHtzYD2pvthcwxtxmeg&amp;zhida_source=entity" target="_blank" rel="noreferrer">Embedding</a></span> / <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=Tokenization&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJUb2tlbml6YXRpb24iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.RP1zSZmyx9Eyf_ROtHcYQ2Qrma-EH9drVbPK_kffL3g&amp;zhida_source=entity" target="_blank" rel="noreferrer">Tokenization</a></span>
 -&gt; 用户行为序列建模
 -&gt; 非序列特征交叉
 -&gt; 多任务建模
--&gt; 多目标预估输出
-</code></pre>
+-&gt; 多目标预估输出</code></pre></div>
 <p>过去几年，业界对这些模块分别做过扩容：</p>
-<ol>
-<li>行为序列建模扩容：DIN、DIEN、SIM、C-Former、LONGER 等，重点是把用户历史行为建模得更细。</li>
-<li>特征交叉扩容：DCN、RankMixer、Transformer-style token mixing 等，重点是加强 feature interaction。</li>
-<li>多任务建模扩容：MMoE、PLE、HoME、MoE-style task experts 等，重点是处理点击、时长、点赞、关注等目标之间的共享与冲突。</li>
-</ol>
-<p>这些方法都有效，但它们大多还是在“某个组件”里加容量。UniFormer 的核心判断是：当模型继续变大时，只扩一个组件会遇到瓶颈，因为推荐排序的真实建模空间不是单一模块，而是：</p>
-<pre><code class="language-text">序列行为 + 非序列特征 + 多任务目标
-</code></pre>
-<p>更关键的是，已有 HyFormer、MixFormer、OneTrans 这类方法虽然开始做跨模块联合建模，但主要仍然集中在 feature space，也就是“行为序列和特征交叉”这一侧；task modeling 通常仍然是后接 tower、expert 或 head，没有真正被纳入统一交互空间。</p>
-<p>所以 UniFormer 的一句话总结是：</p>
-<blockquote>
-<p>把工业推荐排序从 component-centric scaling 推向 model-centric co-scaling，并把 task space 作为一等公民纳入统一建模。</p>
-</blockquote>
-<p>这不是简单地“把 Transformer 堆深一点”，而是重新划分推荐模型的建模空间：先在 feature space 里融合序列与非序列特征，再在 task space 里让任务 token 主动读取高阶特征，并显式建模任务之间的关系。</p>
-<h2>2. 背景：为什么组件级扩容不够</h2>
+<ol><li><span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=2&amp;q=%E8%A1%8C%E4%B8%BA%E5%BA%8F%E5%88%97&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLooYzkuLrluo_liJciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.GIId405KC30l-aNqZB6gvPWwx_UZWDXaPgXQWWCZluw&amp;zhida_source=entity" target="_blank" rel="noreferrer">行为序列</a></span>建模扩容：DIN、DIEN、SIM、C-Former、LONGER 等，重点是把用户历史<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E8%A1%8C%E4%B8%BA%E5%BB%BA%E6%A8%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLooYzkuLrlu7rmqKEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.DAJ-f9lLgLHQg1XpBFn0r5CDmAs-HguU0OgPo4vyw2o&amp;zhida_source=entity" target="_blank" rel="noreferrer">行为建模</a></span>得更细。</li><li>特征交叉扩容：DCN、RankMixer、Transformer-style token mixing 等，重点是加强 feature interaction。</li><li>多任务建模扩容：MMoE、PLE、HoME、MoE-style task experts 等，重点是处理点击、时长、点赞、关注等目标之间的共享与冲突。</li></ol>
+<p>这些方法都有效，但它们大多还是在“某个组件”里加容量。UniFormer 的核心判断是：当模型继续变大时，只扩一个组件会遇到瓶颈，因为推荐排序的真实建<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E6%A8%A1%E7%A9%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLmqKHnqbrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.fQn5DmcVdsvGoKIkw4LqYUbez6VA660dQftEOxcgBvo&amp;zhida_source=entity" target="_blank" rel="noreferrer">模空间</a></span>不是单一模块，而是：</p>
+<div><pre><code class="language-text">序列行为 + 非序列特征 + 多任务目标</code></pre></div>
+<p>更关键的是，已有 HyFormer、MixFormer、OneTrans 这类方法虽然开始做跨模块联合建模，但主要仍然集中在 feature space，也就是“行为序列和<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=3&amp;q=%E7%89%B9%E5%BE%81%E4%BA%A4%E5%8F%89&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLnibnlvoHkuqTlj4kiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MywiemRfdG9rZW4iOm51bGx9.DbpoFKDke9Yn0bjdt2WuOPWnxrBn5FuxzZ6bFdcBXlY&amp;zhida_source=entity" target="_blank" rel="noreferrer">特征交叉</a></span>”这一侧；task modeling 通常仍然是后接 tower、expert 或 head，没有真正被纳入统一<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BA%A4%E4%BA%92%E7%A9%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLkuqTkupLnqbrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.PVWsZJlx-MeFHiMX-81JpuN-EWrWA2noupQfV-m5svs&amp;zhida_source=entity" target="_blank" rel="noreferrer">交互空间</a></span>。</p>
+<h3>2. 背景：为什么组件级扩容不够</h3>
 <p>工业推荐排序里，模型容量不是越大越好，问题在于容量放在哪里。</p>
-<p>如果只加强行为序列模块，模型可能更懂用户历史，但对用户侧、item 侧、上下文、交叉统计特征的组合不一定更强。如果只加强特征交叉模块，模型可能更会处理非序列特征，但对短期兴趣、长期兴趣和 target-aware 行为的理解仍然不足。如果只加强多任务模块，模型可能更会平衡点击、时长、互动等目标，但输入给 task tower 的高阶表征仍然可能不够好。</p>
+<p>如果只加强行为序列模块，模型可能更懂用户历史，但对用户侧、item 侧、上下文、<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BA%A4%E5%8F%89%E7%BB%9F%E8%AE%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLkuqTlj4nnu5_orqEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.k4CHwNa6kWCHrpzZ9BgqrVYXeV2TJxlfc05-cb0cYPw&amp;zhida_source=entity" target="_blank" rel="noreferrer">交叉统计</a></span>特征的组合不一定更强。如果只加强特征交叉模块，模型可能更会处理非序列特征，但对短期兴趣、长期兴趣和 target-aware 行为的理解仍然不足。如果只加强多任务模块，模型可能更会平衡点击、时长、互动等目标，但输入给 task tower 的高阶表征仍然可能不够好。</p>
 <p>UniFormer 把这个问题抽象成两种 scaling 范式：</p>
-<pre><code class="language-text">Component-centric scaling:
-  单独扩行为模块 / 特征交叉模块 / 多任务模块
+<div><pre><code class="language-text">Component-centric scaling:
+  单独扩行为模块 / 特征交叉模块 / <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=2&amp;q=%E5%A4%9A%E4%BB%BB%E5%8A%A1%E6%A8%A1%E5%9D%97&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLlpJrku7vliqHmqKHlnZciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.UJHsA8ykKv5FTUN8iIstueFITkSW4B4dUUFFZmyZJlU&amp;zhida_source=entity" target="_blank" rel="noreferrer">多任务模块</a></span>
 
 Model-centric co-scaling:
-  同时扩序列行为、非序列特征、任务目标，并让它们在统一框架中交互
-</code></pre>
+  同时扩序列行为、非序列特征、任务目标，并让它们在统一框架中交互</code></pre></div>
 <p>论文认为，一个真正工业可用的 model-centric scaling 框架至少要满足三点：</p>
-<ol>
-<li><strong>效率可控</strong>：快手主推荐这类场景候选量大、并发高、延迟严，不能用全量 token 做无脑 full attention。</li>
-<li><strong>兴趣不坍缩</strong>：短期行为、长期兴趣、target-aware 搜索序列、跨域行为等异构序列不能被粗暴拼成一个序列，否则强信号可能淹没弱信号。</li>
-<li><strong>参数分配可扩展</strong>：扩容不能只集中在某个共享 FFN 或某个大 expert 上，而要能按序列、非序列、任务等不同视角分配容量。</li>
-</ol>
-<p>这三个约束决定了 UniFormer 的设计路线：<strong>分空间建模、分类型 token 化、分视角 FFN 扩容。</strong></p>
-<h2>3. 总体架构：FIM + TIM</h2>
+<ol><li><b>效率可控</b>：快手主推荐这类场景候选量大、并发高、延迟严，不能用全量 token 做无脑 full attention。</li><li><b>兴趣不坍缩</b>：短期行为、长期兴趣、target-aware 搜索序列、跨域行为等异构序列不能被粗暴拼成一个序列，否则强信号可能淹没弱信号。</li><li><b>参数分配可扩展</b>：扩容不能只集中在某个共享 FFN 或某个大 expert 上，而要能按序列、非序列、任务等不同视角分配容量。</li></ol>
+<p>这三个约束决定了 UniFormer 的设计路线：<b>分<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E7%A9%BA%E9%97%B4%E5%BB%BA%E6%A8%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLnqbrpl7Tlu7rmqKEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.hxJUeCGKVMGtHwTzWzHbPDtjU7L52BawZ8pI5fDlszs&amp;zhida_source=entity" target="_blank" rel="noreferrer">空间建模</a></span>、分类型 token 化、分视角 FFN 扩容。</b></p>
+<h3>3. 总体架构：FIM + TIM</h3>
+<figure><div><img src="../assets/posts/uniformer/01.jpg" alt="快手 UniFormer ：从组件扩容到特征空间与任务空间统一扩容 配图 1" loading="lazy" decoding="async"></div></figure>
 <p>UniFormer 的整体框架由两个核心部分组成：</p>
-<pre><code class="language-text">Tokenization Block
+<div><pre><code class="language-text">Tokenization Block
 -&gt; Unified Interaction Block
-   -&gt; Feature-space Interaction Module, FIM
-   -&gt; Task-space Interaction Module, TIM
--&gt; Task-specific Output Heads
-</code></pre>
+   -&gt; <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=Feature-space+Interaction+Module&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJGZWF0dXJlLXNwYWNlIEludGVyYWN0aW9uIE1vZHVsZSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTgzNjI0NSwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.LYwOMb3X1fF_FU3mk6AGZJI1WE2koQExdzYdI1TOtXs&amp;zhida_source=entity" target="_blank" rel="noreferrer">Feature-space Interaction Module</a></span>, FIM
+   -&gt; <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=Task-space+Interaction+Module&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJUYXNrLXNwYWNlIEludGVyYWN0aW9uIE1vZHVsZSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTgzNjI0NSwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.1spYgqbJlvEOQn0HUTUIlvFBUr2MeBZtQkLP90XJ69g&amp;zhida_source=entity" target="_blank" rel="noreferrer">Task-space Interaction Module</a></span>, TIM
+-&gt; Task-specific Output Heads</code></pre></div>
 <p>其中 Tokenization Block 把输入特征整理成三类 token：</p>
-<pre><code class="language-text">sequential feature tokens
+<div><pre><code class="language-text">sequential feature tokens
 non-sequential feature tokens
-task feature tokens
-</code></pre>
+task feature tokens</code></pre></div>
 <p>Unified Interaction Block 则分成两段：</p>
-<pre><code class="language-text">FIM:
+<div><pre><code class="language-text">FIM:
   建模 sequential features 和 non-sequential features 的交互
 
 TIM:
   用 task tokens 读取 FIM 输出的高阶 feature 表征
-  再建模 task-task 之间的关系
-</code></pre>
+  再建模 task-task 之间的关系</code></pre></div>
 <p>论文给出的统一建模形式可以写成：</p>
-<div class="math-display">\[\mathbf{y}=\mathcal{F}_{\text{co-scaling}}\left(\mathbf{e}_{\text{seq}},\mathbf{e}_{\text{non-seq}},\mathbf{e}_{\text{task}}\right)\]</div>
+<p><span class="math-display">\[\mathbf{y}=\mathcal{F}_{\text{co-scaling}}\left(\mathbf{e}_{\text{seq}},\mathbf{e}_{\text{non-seq}},\mathbf{e}_{\text{task}}\right)\]</span></p>
 <p>这个公式看起来很简单，但它和传统多任务精排模型的差别很大。传统模型通常是：</p>
-<pre><code class="language-text">feature interaction -&gt; shared representation -&gt; task tower
-</code></pre>
+<div><pre><code class="language-text">feature interaction -&gt; shared representation -&gt; task tower</code></pre></div>
 <p>UniFormer 则更像：</p>
-<pre><code class="language-text">feature tokens 先在 feature space 中充分交互
+<div><pre><code class="language-text">feature tokens 先在 <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=2&amp;q=feature+space&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJmZWF0dXJlIHNwYWNlIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc5ODM2MjQ1LCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjIsInpkX3Rva2VuIjpudWxsfQ.Ymy3zxwZwKIzKEJLLh6x7knIrX2XQ4A4lw6MoyDscH4&amp;zhida_source=entity" target="_blank" rel="noreferrer">feature space</a></span> 中充分交互
 task tokens 再进入 task space，与高阶 feature representation 做 cross-attention
-task tokens 之间继续 self-attention
-最后每个 task token 输出对应任务的预估
-</code></pre>
-<p>因此，每个任务不是被动接收同一个 shared representation，而是拥有自己的 task token，通过 attention 主动选择它需要的高阶特征。</p>
-<h2>4. Tokenization：为什么它不只是 embedding 拼接</h2>
-<p>UniFormer 的 tokenization 是整篇论文里很容易被低估的一部分。它不是把所有稀疏特征 embedding concat 后投影，而是围绕两个目标设计：</p>
-<ol>
-<li>为 attention 建模提供语义清晰的 token。</li>
-<li>为在线推理提供 user-item decoupling 的可能。</li>
-</ol>
+task tokens 之间继续 <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=self-attention&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJzZWxmLWF0dGVudGlvbiIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTgzNjI0NSwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.ivxxxetrS0Z0IBgBBMuE1W3LoW2KN-dlC1fciy7_Row&amp;zhida_source=entity" target="_blank" rel="noreferrer">self-attention</a></span>
+最后每个 task token 输出对应任务的预估</code></pre></div>
+<p>因此，每个任务不是被动接收同一个 shared representation，而是拥有自己的 task token，通过 attention 主动选择它需要的<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E9%AB%98%E9%98%B6%E7%89%B9%E5%BE%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLpq5jpmLbnibnlvoEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.lOSxtLWnwF-dN9W6q_gHlNqJZ7m4MKzFx4HP5zPLM-0&amp;zhida_source=entity" target="_blank" rel="noreferrer">高阶特征</a></span>。</p>
+<h3>4. Tokenization</h3>
+<p><span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=tokenization&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJ0b2tlbml6YXRpb24iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.m21qpZ4g5fYKccL-pUN0qaWvWIhi8SkK8v_bURRBeCk&amp;zhida_source=entity" target="_blank" rel="noreferrer">tokenization</a></span> 围绕两个目标设计：</p>
+<ol><li>为 attention 建模提供语义清晰的 token。</li><li>为在线推理提供 user-item decoupling 的可能。</li></ol>
 <h3>4.1 序列特征：item-independent 与 item-dependent 分开处理</h3>
 <p>论文把用户行为序列分成两类。</p>
 <p>第一类是 item-independent behavior，例如短期浏览序列、长期压缩兴趣表示。这些行为本身不依赖当前候选 item，因此可以保留原始序列结构。以短期序列为例，每个行为 token 可以由视频 ID、内容标签、作者、观看时长等信息拼接而成：</p>
-<div class="math-display">\[\mathbf{e}^{\mathrm{short}}_i =
-[\mathbf{e}^{\mathrm{pid}}_i || \mathbf{e}^{\mathrm{tag}}_i || \mathbf{e}^{\mathrm{paid}}_i || \mathbf{e}^{\mathrm{duration}}_i || \dots]\]</div>
-<p>长期兴趣表示则可以直接使用预训练压缩后的 embedding，例如 lifelong interest token。</p>
+<p><span class="math-display">\[\mathbf{e}^{\mathrm{short}}_i = [\mathbf{e}^{\mathrm{pid}}_i || \mathbf{e}^{\mathrm{tag}}_i || \mathbf{e}^{\mathrm{paid}}_i || \mathbf{e}^{\mathrm{duration}}_i || \dots]\]</span></p>
+<p>长期兴趣表示则可以直接使用<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E9%A2%84%E8%AE%AD%E7%BB%83&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLpooTorq3nu4MiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.RDMTmLey48ToNZWaY_DsZIm9GRpefOjnGC35vba4pLM&amp;zhida_source=entity" target="_blank" rel="noreferrer">预训练</a></span>压缩后的 <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=embedding&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJlbWJlZGRpbmciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.e65QU_DHQTr2gt2SXoMmvuuxO4C8Gkd8JsV9z4-ahfs&amp;zhida_source=entity" target="_blank" rel="noreferrer">embedding</a></span>，例如 lifelong interest token。</p>
 <p>第二类是 item-dependent behavior，例如 SIM 这类 target-aware search sequence。它会根据候选 item 从用户历史里检索相关行为，因此天然依赖当前 item。直接保留这类序列会让后续 KV 表示也依赖候选 item，导致同一个用户请求下每个候选都要重复算一遍序列侧网络。</p>
 <p>UniFormer 的处理方式是：对 item-dependent 行为序列先做 target attention 聚合，压成一个 compact token：</p>
-<div class="math-display">\[\mathbf{e}_{\mathrm{search}} =
-\mathrm{TA}(\mathbf{e}_{\mathrm{target}}, \mathbf{K}_{\mathrm{search}}, \mathbf{V}_{\mathrm{search}})\]</div>
-<p>这个设计的用意很工程化：把 target-aware 的信息前置聚合，避免后续跨层 attention 的 KV 被 candidate item 污染，从而为 request-level 复用创造条件。</p>
+<p><span class="math-display">\[\mathbf{e}_{\mathrm{search}} = \mathrm{TA}(\mathbf{e}_{\mathrm{target}}, \mathbf{K}_{\mathrm{search}}, \mathbf{V}_{\mathrm{search}})\]</span></p>
+<p>这个设计的用意很工程化：把 <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=4&amp;q=target-aware&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJ0YXJnZXQtYXdhcmUiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6NCwiemRfdG9rZW4iOm51bGx9.lIMNtfxeTCUVQ2YSQjTpqnwblejyW79-ncpjeMoIjiQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">target-aware</a></span> 的信息前置聚合，避免后续跨层 attention 的 KV 被 candidate item 污染，从而为 request-level 复用创造条件。</p>
 <h3>4.2 非序列特征：按语义分组，而不是全局混成一个 token</h3>
 <p>非序列特征也被分成两类：</p>
-<pre><code class="language-text">item-independent:
+<div><pre><code class="language-text">item-independent:
   user ID、用户画像、上下文、请求侧特征
 
 item-dependent:
-  item ID、item 统计特征、user-item cross 特征
-</code></pre>
-<p>每一类内部再按语义分组，例如用户画像一组、上下文一组、item 统计一组、交叉特征一组。每组 embedding concat 后经过 SwiGLU 投影成一个统一维度的 token。</p>
+  item ID、item 统计特征、user-item cross 特征</code></pre></div>
+<p>每一类内部再按语义分组，例如<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=2&amp;q=%E7%94%A8%E6%88%B7%E7%94%BB%E5%83%8F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLnlKjmiLfnlLvlg48iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.iX0jS1EIJTCVJkTco6BCNiU4vN2-E0S-LyL0UiPhIQM&amp;zhida_source=entity" target="_blank" rel="noreferrer">用户画像</a></span>一组、上下文一组、item 统计一组、<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BA%A4%E5%8F%89%E7%89%B9%E5%BE%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLkuqTlj4nnibnlvoEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.09DFR6ZlFO5M9ZIOrf69kwPr1xwNahCb46CyG81Rxac&amp;zhida_source=entity" target="_blank" rel="noreferrer">交叉特征</a></span>一组。每组 embedding concat 后经过 SwiGLU 投影成一个统一维度的 token。</p>
 <p>这样做有两个收益。</p>
-<p>第一，语义分组让后续 cross-attention 的 query token 更清楚。不同 query token 可以分别从短期序列、长期序列中读取不同兴趣视角，而不是一个混乱的大 query 去吸所有信息。</p>
+<p>第一，语义分组让后续 <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=2&amp;q=cross-attention&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJjcm9zcy1hdHRlbnRpb24iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.2cQIG1_Om2E0nxl3kiCXPIXejet3LqnoARL_4TnuDIk&amp;zhida_source=entity" target="_blank" rel="noreferrer">cross-attention</a></span> 的 query token 更清楚。不同 query token 可以分别从短期序列、<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E9%95%BF%E6%9C%9F%E5%BA%8F%E5%88%97&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLplb_mnJ_luo_liJciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.MDtMsj71FeyUVcckjLM8cZiftuzu7kx4KyeMAhB2m_E&amp;zhida_source=entity" target="_blank" rel="noreferrer">长期序列</a></span>中读取不同兴趣视角，而不是一个混乱的大 query 去吸所有信息。</p>
 <p>第二，item-independent token 和 item-dependent token 可以在推理时拆开计算。对于一个请求里 512 或 1024 个候选 item，用户侧 token 可以算一次复用，候选侧 token 才需要逐 item 计算。</p>
 <h3>4.3 任务特征：每个任务也是一个 token</h3>
 <p>对每个任务，UniFormer 会把 task ID、task bias 等任务相关特征聚成一个 task token：</p>
-<pre><code class="language-text">effective-view token
+<div><pre><code class="language-text">effective-view token
 long-view token
 like token
 follow token
-...
-</code></pre>
+...</code></pre></div>
 <p>这一步非常关键。任务不再只是最后的 tower，而是进入模型内部参与交互的 token。后续 TIM 会让 task token 对 feature representation 做 cross-attention，并在 task tokens 之间做 self-attention。</p>
-<h2>5. FIM：在特征空间里融合序列与非序列特征</h2>
+<h3>5. FIM：在<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E7%89%B9%E5%BE%81%E7%A9%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLnibnlvoHnqbrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.yvOkwgCj-8O5Ag5z2edtMlkcdfJZIQ845yfU4RCK24Y&amp;zhida_source=entity" target="_blank" rel="noreferrer">特征空间</a></span>里融合序列与非序列特征</h3>
 <p>Feature-space Interaction Module, FIM，负责处理 feature space。它包含两个互补部分：</p>
-<pre><code class="language-text">Sequential-oriented Interaction
-Non-sequential-oriented Interaction
-</code></pre>
+<div><pre><code class="language-text">Sequential-oriented Interaction
+<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=Non-sequential-oriented+Interaction&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJOb24tc2VxdWVudGlhbC1vcmllbnRlZCBJbnRlcmFjdGlvbiIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3OTgzNjI0NSwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.dy5QoacUkq3GyXPbZkGQGmlPKG7m88FXkqJrTWqE_jc&amp;zhida_source=entity" target="_blank" rel="noreferrer">Non-sequential-oriented Interaction</a></span></code></pre></div>
 <h3>5.1 Multi-sequence Cross-Attention：防止兴趣坍缩</h3>
-<p>很多推荐模型会把短期序列、长期序列、跨域序列拼成一个大序列，然后让一个 attention 模块统一读取。这样虽然实现简单，但会有一个问题：不同序列的分布、长度、行为强度差异很大，模型容易偏向某一类强信号。</p>
+<p>很多推荐模型会把短期序列、长期序列、<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E8%B7%A8%E5%9F%9F%E5%BA%8F%E5%88%97&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLot6jln5_luo_liJciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.KCQkLbeqRiG20gM-_DnGq5ROqUBemf8tsP5cGGn7Dw8&amp;zhida_source=entity" target="_blank" rel="noreferrer">跨域序列</a></span>拼成一个大序列，然后让一个 attention 模块统一读取。这样虽然实现简单，但会有一个问题：不同序列的分布、长度、行为强度差异很大，模型容易偏向某一类强信号。</p>
 <p>例如短视频场景中，短期浏览行为很密集，能强烈反映用户当下兴趣；长期兴趣更稀疏，但能保留稳定偏好。如果二者直接拼接，模型可能过度追逐短期兴趣，导致用户偏好变窄，也就是论文说的 preference collapse。</p>
 <p>UniFormer 的做法是 multi-sequence cross-attention：不同序列先分别被 query tokens 读取。</p>
 <p>以短期序列为例，第 <span class="math-inline">\(l\)</span> 层可以写成：</p>
-<div class="math-display">\[\mathbf{H}_{\mathrm{short}}^{\mathrm{feat},(l)}
-=
-\mathrm{CA}
-\left(
-\mathrm{RMSNorm}(\mathbf{Q}^{\mathrm{feat},(l-1)}_{\mathrm{cross}}),
-\mathbf{K}_{\mathrm{short}}^{(l)},
-\mathbf{V}_{\mathrm{short}}^{(l)}
-\right)
-+\mathbf{Q}^{\mathrm{feat},(l-1)}_{\mathrm{cross}}\]</div>
+<p><span class="math-display">\[\mathbf{H}_{\mathrm{short}}^{\mathrm{feat},(l)} = \mathrm{CA} \left( \mathrm{RMSNorm}(\mathbf{Q}^{\mathrm{feat},(l-1)}_{\mathrm{cross}}), \mathbf{K}_{\mathrm{short}}^{(l)}, \mathbf{V}_{\mathrm{short}}^{(l)} \right) +\mathbf{Q}^{\mathrm{feat},(l-1)}_{\mathrm{cross}}\]</span></p>
 <p>长期序列也用类似方式处理。区别在于，不同序列可以拥有独立的 Sequential-oriented FFN, S-FFN：</p>
-<pre><code class="language-text">short-term sequence -&gt; cross-attention -&gt; short-specific S-FFN
-long-term sequence  -&gt; cross-attention -&gt; long-specific S-FFN
-</code></pre>
+<div><pre><code class="language-text">short-term sequence -&gt; cross-attention -&gt; short-specific S-FFN
+long-term sequence  -&gt; cross-attention -&gt; long-specific S-FFN</code></pre></div>
 <p>这样每种行为序列都能在自己的 latent space 里抽取模式，再做融合。</p>
 <h3>5.2 短期与长期兴趣的自适应融合</h3>
 <p>FIM 对不同序列输出提供两种融合方式。</p>
 <p>第一种是 global adaptive fusion，用一个全局可学习系数 <span class="math-inline">\(\alpha\)</span> 平衡短期和长期：</p>
-<div class="math-display">\[\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{cross}}
-=
-\alpha \widetilde{\mathbf{H}}_{\mathrm{short}}^{\mathrm{feat},(l)}
-+
-(1-\alpha)\widetilde{\mathbf{H}}_{\mathrm{long}}^{\mathrm{feat},(l)}\]</div>
+<p><span class="math-display">\[\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{cross}} = \alpha \widetilde{\mathbf{H}}_{\mathrm{short}}^{\mathrm{feat},(l)} + (1-\alpha)\widetilde{\mathbf{H}}_{\mathrm{long}}^{\mathrm{feat},(l)}\]</span></p>
 <p>第二种是 personalized adaptive fusion，根据用户活跃度、交互行为等用户侧特征动态预测 <span class="math-inline">\(\alpha_i\)</span>：</p>
-<div class="math-display">\[\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{cross}}
-=
-\alpha_i \widetilde{\mathbf{H}}_{\mathrm{short}}^{\mathrm{feat},(l)}
-+
-(1-\alpha_i)\widetilde{\mathbf{H}}_{\mathrm{long}}^{\mathrm{feat},(l)}\]</div>
+<p><span class="math-display">\[\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{cross}} = \alpha_i \widetilde{\mathbf{H}}_{\mathrm{short}}^{\mathrm{feat},(l)} + (1-\alpha_i)\widetilde{\mathbf{H}}_{\mathrm{long}}^{\mathrm{feat},(l)}\]</span></p>
 <p>这个设计很符合短视频推荐的真实情况。高活跃用户的近期行为更密集，短期兴趣可信度更高；冷启动或低活跃用户近期行为少，长期兴趣、画像和统计特征可能更重要。</p>
 <h3>5.3 Interaction Enhancement：把非序列特征重新拉回来</h3>
-<p>经过 sequence-oriented interaction 后，表示主要由序列信息主导。为了避免模型只围绕行为序列打转，UniFormer 会把 cross-attention 输出和上一层保留的 non-sequential query 拼接起来：</p>
-<div class="math-display">\[\mathbf{X}^{\mathrm{feat},(l)}
-=
-[\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{cross}} || \mathbf{Q}^{\mathrm{feat},(l-1)}_{\mathrm{self}}]\]</div>
+<p>经过 sequence-oriented interaction 后，表示主要由<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E5%BA%8F%E5%88%97%E4%BF%A1%E6%81%AF&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLluo_liJfkv6Hmga8iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.uIuW1ranWkvQUolfRaCX7iEd0hKbklXDXXnF8p-_AWk&amp;zhida_source=entity" target="_blank" rel="noreferrer">序列信息</a></span>主导。为了避免模型只围绕行为序列打转，UniFormer 会把 cross-attention 输出和上一层保留的 non-sequential query 拼接起来：</p>
+<p><span class="math-display">\[\mathbf{X}^{\mathrm{feat},(l)} = [\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{cross}} || \mathbf{Q}^{\mathrm{feat},(l-1)}_{\mathrm{self}}]\]</span></p>
 <p>然后在拼接后的 token 上做 self-attention：</p>
-<div class="math-display">\[\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{self}}
-=
-\mathrm{SA}
-\left(
-\mathrm{RMSNorm}(\mathbf{X}^{\mathrm{feat},(l)})
-\right)
-+
-\mathbf{X}^{\mathrm{feat},(l)}\]</div>
+<p><span class="math-display">\[\mathbf{H}^{\mathrm{feat},(l)}_{\mathrm{self}} = \mathrm{SA} \left( \mathrm{RMSNorm}(\mathbf{X}^{\mathrm{feat},(l)}) \right) + \mathbf{X}^{\mathrm{feat},(l)}\]</span></p>
 <p>这一步可以理解成：先用 query tokens 从各类序列中“读兴趣”，再让读出来的兴趣和非序列特征充分交叉。</p>
 <h3>5.4 为什么不是全量 full attention</h3>
 <p>如果把所有序列 token、非序列 token、任务 token 放在一起做 full attention，形式上最统一，但工业上很难承受。行为序列长、候选 item 多、任务多，一旦全空间交互，计算复杂度和显存都会很快爆炸。</p>
 <p>UniFormer 的折中是：</p>
-<pre><code class="language-text">序列 token 不直接彼此全量交互
+<div><pre><code class="language-text">序列 token 不直接彼此全量交互
 非序列语义 query 通过 cross-attention 读取序列
-再在较小的 feature token 集合上做 self-attention
-</code></pre>
-<p>这相当于用少量语义 query 对长序列做信息抽取，再把抽取后的 compact representations 放到统一特征空间中交互。它牺牲了一部分 token 级全局表达能力，但换来了在线可部署性。</p>
-<h2>6. TIM：让任务进入模型内部，而不是只接最后一层</h2>
+再在较小的 feature token 集合上做 self-attention</code></pre></div>
+<p>这相当于用少量语义 query 对长序列做<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BF%A1%E6%81%AF%E6%8A%BD%E5%8F%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLkv6Hmga_mir3lj5YiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.zlHTsOosjJvfgx5acM61XVCS98BpPGftFAASTRYaBxc&amp;zhida_source=entity" target="_blank" rel="noreferrer">信息抽取</a></span>，再把抽取后的 compact representations 放到统一特征空间中交互。它牺牲了一部分 token 级全局表达能力，但换来了在线可部署性。</p>
+<h3>6. TIM：让任务进入模型内部，而不是只接最后一层</h3>
 <p>Task-space Interaction Module, TIM，是 UniFormer 相对许多 feature-space co-scaling 方法最关键的新增部分。</p>
 <p>FIM 输出的是高阶 feature representation：</p>
-<pre><code class="language-text">FIM output = feature tokens after sequence + non-sequence interaction
-</code></pre>
+<div><pre><code class="language-text">FIM output = feature tokens after sequence + non-sequence interaction</code></pre></div>
 <p>TIM 输入两类信息：</p>
-<pre><code class="language-text">task tokens
-FIM high-order feature tokens
-</code></pre>
+<div><pre><code class="language-text">task tokens
+FIM high-order feature tokens</code></pre></div>
 <h3>6.1 Task-aware Feature Interaction</h3>
 <p>在第 <span class="math-inline">\(l\)</span> 层 TIM 中，task token 作为 query，对 FIM 输出的高阶 feature tokens 做 cross-attention：</p>
-<div class="math-display">\[\mathbf{H}_{\mathrm{cross}}^{\mathrm{task},(l)}
-=
-\mathrm{CA}
-\left(
-\mathrm{RMSNorm}(\mathbf{Q}^{\mathrm{task},(l-1)}_{\mathrm{cross}}),
-\mathbf{K}_{\mathrm{feat}}^{(l)},
-\mathbf{V}_{\mathrm{feat}}^{(l)}
-\right)
-+
-\mathbf{Q}^{\mathrm{task},(l-1)}_{\mathrm{cross}}\]</div>
+<p><span class="math-display">\[\mathbf{H}_{\mathrm{cross}}^{\mathrm{task},(l)} = \mathrm{CA} \left( \mathrm{RMSNorm}(\mathbf{Q}^{\mathrm{task},(l-1)}_{\mathrm{cross}}), \mathbf{K}_{\mathrm{feat}}^{(l)}, \mathbf{V}_{\mathrm{feat}}^{(l)} \right) + \mathbf{Q}^{\mathrm{task},(l-1)}_{\mathrm{cross}}\]</span></p>
 <p>第一层里：</p>
-<div class="math-display">\[\mathbf{Q}^{\mathrm{task},(0)}_{\mathrm{cross}} = \mathbf{N_T}\]</div>
+<p><span class="math-display">\[\mathbf{Q}^{\mathrm{task},(0)}_{\mathrm{cross}} = \mathbf{N_T}\]</span></p>
 <p>也就是说，Effective-view、Long-view、Like、Follow 等任务各自拿自己的 token 去读取 feature representation。这样每个任务看到的用户-视频表征可以不同。</p>
 <p>这和 MMoE 有相似之处：不同任务对共享专家加权不同。但 TIM 用 attention 表达这个过程，粒度更细，因为 task token 可以对 feature tokens 做 task-aware aggregation。</p>
 <h3>6.2 Task-oriented Interaction</h3>
 <p>任务不只是各读各的 feature，还需要彼此交互。短视频推荐里，各任务天然相关：</p>
-<pre><code class="language-text">effective view 和 long view 相关
+<div><pre><code class="language-text">effective view 和 long view 相关
 like 和 follow 相关
 comment staytime 和 comment rate 相关
-watch time 和 interaction 可能既协同又冲突
-</code></pre>
+watch time 和 interaction 可能既协同又冲突</code></pre></div>
 <p>TIM 在 task tokens 上继续做 self-attention：</p>
-<div class="math-display">\[\mathbf{H}^{\mathrm{task},(l)}_{\mathrm{self}}
-=
-\mathrm{SA}
-\left(
-\mathrm{RMSNorm}(\mathbf{H}^{\mathrm{task},(l)}_{\mathrm{cross}})
-\right)
-+
-\mathbf{H}^{\mathrm{task},(l)}_{\mathrm{cross}}\]</div>
+<p><span class="math-display">\[\mathbf{H}^{\mathrm{task},(l)}_{\mathrm{self}} = \mathrm{SA} \left( \mathrm{RMSNorm}(\mathbf{H}^{\mathrm{task},(l)}_{\mathrm{cross}}) \right) + \mathbf{H}^{\mathrm{task},(l)}_{\mathrm{cross}}\]</span></p>
 <p>随后每个 task token 进入自己的 Task-oriented FFN, T-FFN：</p>
-<div class="math-display">\[\mathbf{f}^{\mathrm{task},(l)}_i
-=
-\mathrm{FFN}^{\mathrm{task},(l)}_i
-\left(
-\mathbf{h}^{\mathrm{task},(l)}_i
-\right)
-+
-\mathbf{h}^{\mathrm{task},(l)}_i\]</div>
+<p><span class="math-display">\[\mathbf{f}^{\mathrm{task},(l)}_i = \mathrm{FFN}^{\mathrm{task},(l)}_i \left( \mathbf{h}^{\mathrm{task},(l)}_i \right) + \mathbf{h}^{\mathrm{task},(l)}_i\]</span></p>
 <p>最后每个任务用自己的 head 输出：</p>
-<div class="math-display">\[\hat{y}_i = \sigma(\mathrm{FFN}_i(\mathbf{f}^{\mathrm{task},(N)}_i))\]</div>
+<p><span class="math-display">\[\hat{y}_i = \sigma(\mathrm{FFN}_i(\mathbf{f}^{\mathrm{task},(N)}_i))\]</span></p>
 <p>训练目标是标准加权多任务 loss：</p>
-<div class="math-display">\[\mathcal{L} = \sum_{i=1}^{t}\lambda_i \mathcal{L}_i(y_i,\hat{y}_i)\]</div>
-<p>TIM 的价值在于，它把多任务建模从“最后一层 tower 设计”推进到了“中间层 token 交互”。这会让任务相关性更早影响特征选择，而不只是最后阶段做输出变换。</p>
-<h2>7. Multi-view FFNs：参数扩容要有位置感</h2>
+<p><span class="math-display">\[\mathcal{L} = \sum_{i=1}^{t}\lambda_i \mathcal{L}_i(y_i,\hat{y}_i)\]</span></p>
+<p>TIM 的价值在于，它把多任务建模从“最后一层 tower 设计”推进到了“中间层 token 交互”。这会让任务相关性更早影响<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E7%89%B9%E5%BE%81%E9%80%89%E6%8B%A9&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLnibnlvoHpgInmi6kiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.QnE7UUaweqiP0HB4G2yapFCv6b05rYAkYraeqtgF-Ic&amp;zhida_source=entity" target="_blank" rel="noreferrer">特征选择</a></span>，而不只是最后阶段做输出变换。</p>
+<h3>7. <span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=Multi-view+FFNs&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiJNdWx0aS12aWV3IEZGTnMiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.IIrTvfD6qzUTxxfE3Ha8ioyyH7ET7kWgtnhaRmU5ri0&amp;zhida_source=entity" target="_blank" rel="noreferrer">Multi-view FFNs</a></span>：参数扩容要有位置感</h3>
 <p>UniFormer 的另一个核心设计是 multi-view FFNs。论文没有让所有 token 共用一个大 FFN，而是为不同视角设置专门 FFN：</p>
-<pre><code class="language-text">S-FFNs:
+<div><pre><code class="language-text">S-FFNs:
   sequential-oriented FFNs
   面向短期、长期、跨域等不同序列模式
 
@@ -265,146 +183,69 @@ NS-FFNs:
 
 T-FFNs:
   task-oriented FFNs
-  面向不同任务目标
-</code></pre>
+  面向不同任务目标</code></pre></div>
 <p>这件事的本质是参数分配。大模型化不是只看总参数量，而是看参数能不能落在正确的子空间里。</p>
 <p>如果所有 token 共用 FFN，会产生两个问题：</p>
-<ol>
-<li>异构 token 共享同一套非线性变换，容易互相干扰。</li>
-<li>继续扩容时，参数增长不一定流向最需要容量的组件。</li>
-</ol>
+<ol><li>异构 token 共享同一套非<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BA%BF%E6%80%A7%E5%8F%98%E6%8D%A2&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLnur_mgKflj5jmjaIiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.lNidZR0ns2BtTMhP21N4nQpLaxnSTDEGUsuOf1W4n_0&amp;zhida_source=entity" target="_blank" rel="noreferrer">线性变换</a></span>，容易互相干扰。</li><li>继续扩容时，参数增长不一定流向最需要容量的组件。</li></ol>
 <p>Multi-view FFNs 的好处是，每类 token 都能拥有更匹配自身统计性质的变换空间。短期行为、长期兴趣、用户画像、item 统计、任务目标，本来就不是同一种分布，用专门 FFN 很自然。</p>
 <p>从消融实验看，去掉 S-FFNs 或 NS-FFNs 会带来明显下降，这也说明 UniFormer 的收益不只是来自 attention 结构，FFN 的分视角扩容同样关键。</p>
-<h2>8. 工程优化：论文真正工业化的地方</h2>
+<h3>8. 工程优化</h3>
 <p>UniFormer 很强调 efficient，因为快手主站短视频排序不是离线 benchmark，而是高并发线上服务。论文提到的优化主要有四类。</p>
 <h3>8.1 Lazy KV：跨层复用 KV 表示</h3>
 <p>在 FIM 和 TIM 的 cross-attention 中，UniFormer 默认采用 lazy design：多个 cross-attention 层共享 KV 表示。论文默认设置：</p>
-<pre><code class="language-text">S_kv = 1
-L_kv = 1
-</code></pre>
+<div><pre><code class="language-text">S_kv = 1
+L_kv = 1</code></pre></div>
 <p>这意味着所有层共享同一组 KV 表示，从而降低内存和计算开销。直观理解是：长序列侧或 feature memory 侧不必每层重新生成一套昂贵 KV，query 逐层更新即可。</p>
 <p>这种设计会牺牲一部分层间动态 KV 表达，但对工业排序很划算，因为 cross-attention 的 KV 侧通常很大，尤其是长行为序列。</p>
 <h3>8.2 User-level Common Compression</h3>
 <p>推荐训练样本通常是 <code>&lt;user, item&gt;</code> pair。同一个 batch 里，同一个用户可能对应多个候选 item，而用户侧行为序列完全相同。如果每条样本重复存储和处理用户行为，会浪费大量 embedding lookup、内存拷贝和序列聚合计算。</p>
 <p>UniFormer 使用 user-level common compression：同一个用户的 common behavior features 只处理一次，再通过 index mapping 关联到多个 item 样本。</p>
 <p>论文给出理论加速形式。若 batch 中有 <span class="math-inline">\(B\)</span> 个样本、<span class="math-inline">\(U\)</span> 个 unique users，平均每个用户对应 <span class="math-inline">\(\bar{k}=B/U\)</span> 个样本，用户侧公共成本为 <span class="math-inline">\(C_{\mathrm{com}}\)</span>，其余样本级成本为 <span class="math-inline">\(C_{\mathrm{sample}}\)</span>，则成本从：</p>
-<div class="math-display">\[B(C_{\mathrm{com}}+C_{\mathrm{sample}})\]</div>
+<p><span class="math-display">\[B(C_{\mathrm{com}}+C_{\mathrm{sample}})\]</span></p>
 <p>降到：</p>
-<div class="math-display">\[UC_{\mathrm{com}} + BC_{\mathrm{sample}}\]</div>
+<p><span class="math-display">\[UC_{\mathrm{com}} + BC_{\mathrm{sample}}\]</span></p>
 <p>理论 speedup 为：</p>
-<div class="math-display">\[\frac{C_{\mathrm{com}}+C_{\mathrm{sample}}}
-{C_{\mathrm{sample}}+C_{\mathrm{com}}/\bar{k}}\]</div>
+<p><span class="math-display">\[\frac{C_{\mathrm{com}}+C_{\mathrm{sample}}} {C_{\mathrm{sample}}+C_{\mathrm{com}}/\bar{k}}\]</span></p>
 <p>当同一用户对应候选越多、用户侧序列越重，这个优化越值钱。</p>
 <h3>8.3 Variable-length FlashAttention</h3>
 <p>用户行为序列长度天然不等。传统 padding 后 attention 的复杂度近似：</p>
-<div class="math-display">\[O(BqL_{\max}d)\]</div>
+<p><span class="math-display">\[O(BqL_{\max}d)\]</span></p>
 <p>其中 <span class="math-inline">\(B\)</span> 是 batch size，<span class="math-inline">\(q\)</span> 是 query 长度，<span class="math-inline">\(L_{\max}\)</span> 是 batch 内最大序列长度。</p>
 <p>UniFormer 使用 variable-length FlashAttention，把复杂度降为：</p>
-<div class="math-display">\[O(q\sum_i L_i d)\]</div>
+<p><span class="math-display">\[O(q\sum_i L_i d)\]</span></p>
 <p>这避免了短序列样本被迫补齐到最长序列带来的浪费。对于长短序列混杂严重的推荐日志，这通常不是小优化，而是决定训练吞吐和显存水位的关键。</p>
 <h3>8.4 User-Item Decoupling：请求级推理加速</h3>
 <p>在线推理时，一个用户请求通常要同时打分 512 或 1024 个候选 item。如果每个候选 item 都完整跑一遍用户侧网络，成本会非常高。</p>
 <p>UniFormer 的 semantic tokenization 使得 non-sequential features 可以拆成：</p>
-<pre><code class="language-text">item-independent tokens
-item-dependent tokens
-</code></pre>
+<div><pre><code class="language-text">item-independent tokens
+item-dependent tokens</code></pre></div>
 <p>item-independent tokens 可以每个 request 只算一次，然后在多个候选 item 上复用。</p>
 <p>但还有一个麻烦：self-attention 会让 user-side token 和 item-side token 相互影响，一旦 user token attend 到 item token，用户侧表示就又变成 item-dependent 了。UniFormer 通过 attention mask 移除 user-side queries 到 item-side keys 的注意力，让用户侧 attention 计算保持可复用。</p>
 <p>这就是论文中 48% QPS 提升的核心来源之一：不是单纯优化 kernel，而是从 tokenization 和 attention dependency graph 上把用户侧计算拆出来。</p>
-<h2>9. 实验结果怎么读</h2>
-<p>论文使用快手单列短视频推荐工业数据集评估。该场景是快手最大的推荐场景，论文称日活超过 4 亿，每天产生超过 500 亿交互日志。实验关注四个核心任务：</p>
-<pre><code class="language-text">Effective-view
+<h3>9. 实验结果</h3>
+<p>论文使用快手单列短视频推荐工业<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E6%95%B0%E6%8D%AE%E9%9B%86&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLmlbDmja7pm4YiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.xSENdg-3tqjWjb2bCfem2q-f7PNvwqECfq1hxh1ZVvM&amp;zhida_source=entity" target="_blank" rel="noreferrer">数据集</a></span>评估。该场景是快手最大的推荐场景，日活超过 4 亿，每天产生超过 500 亿交互日志。实验关注四个核心任务：</p>
+<div><pre><code class="language-text">Effective-view
 Long-view
 Like
-Follow
-</code></pre>
+Follow</code></pre></div>
 <h3>9.1 离线 GAUC</h3>
-<table>
-<thead>
-<tr>
-<th>Model</th>
-<th align="right">Effective-view</th>
-<th align="right">Long-view</th>
-<th align="right">Like</th>
-<th align="right">Follow</th>
-<th align="right">Dense Params</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>SIM+DCN</td>
-<td align="right">0.7418</td>
-<td align="right">0.7734</td>
-<td align="right">0.8486</td>
-<td align="right">0.8361</td>
-<td align="right">115.8M</td>
-</tr>
-<tr>
-<td>SIM+HoME</td>
-<td align="right">0.7424</td>
-<td align="right">0.7740</td>
-<td align="right">0.8494</td>
-<td align="right">0.8374</td>
-<td align="right">114.8M</td>
-</tr>
-<tr>
-<td>SIM+RankMixer</td>
-<td align="right">0.7443</td>
-<td align="right">0.7757</td>
-<td align="right">0.8507</td>
-<td align="right">0.8374</td>
-<td align="right">492.0M</td>
-</tr>
-<tr>
-<td>HyFormer</td>
-<td align="right">0.7447</td>
-<td align="right">0.7762</td>
-<td align="right">0.8512</td>
-<td align="right">0.8381</td>
-<td align="right">496.5M</td>
-</tr>
-<tr>
-<td>MixFormer</td>
-<td align="right">0.7450</td>
-<td align="right">0.7764</td>
-<td align="right">0.8514</td>
-<td align="right">0.8388</td>
-<td align="right">489.4M</td>
-</tr>
-<tr>
-<td>UniFormer</td>
-<td align="right">0.7457</td>
-<td align="right">0.7771</td>
-<td align="right">0.8531</td>
-<td align="right">0.8435</td>
-<td align="right">516.0M</td>
-</tr>
-<tr>
-<td>UniFormer-Large</td>
-<td align="right">0.7465</td>
-<td align="right">0.7779</td>
-<td align="right">0.8538</td>
-<td align="right">0.8448</td>
-<td align="right">995.3M</td>
-</tr>
-</tbody></table>
+<table><tbody><tr><th>Model</th><th>Effective-view</th><th>Long-view</th><th>Like</th><th>Follow</th><th>Dense Params</th></tr><tr><td>SIM+DCN</td><td>0.7418</td><td>0.7734</td><td>0.8486</td><td>0.8361</td><td>115.8M</td></tr><tr><td>SIM+HoME</td><td>0.7424</td><td>0.7740</td><td>0.8494</td><td>0.8374</td><td>114.8M</td></tr><tr><td>SIM+RankMixer</td><td>0.7443</td><td>0.7757</td><td>0.8507</td><td>0.8374</td><td>492.0M</td></tr><tr><td>HyFormer</td><td>0.7447</td><td>0.7762</td><td>0.8512</td><td>0.8381</td><td>496.5M</td></tr><tr><td>MixFormer</td><td>0.7450</td><td>0.7764</td><td>0.8514</td><td>0.8388</td><td>489.4M</td></tr><tr><td>UniFormer</td><td>0.7457</td><td>0.7771</td><td>0.8531</td><td>0.8435</td><td>516.0M</td></tr><tr><td>UniFormer-Large</td><td>0.7465</td><td>0.7779</td><td>0.8538</td><td>0.8448</td><td>995.3M</td></tr></tbody></table>
 <p>相对 SIM+DCN，UniFormer 在四个任务上的提升分别是：</p>
-<pre><code class="language-text">Effective-view: +0.53%
+<div><pre><code class="language-text">Effective-view: +0.53%
 Long-view:      +0.48%
 Like:           +0.53%
-Follow:         +0.89%
-</code></pre>
+Follow:         +0.89%</code></pre></div>
 <p>UniFormer-Large 继续提升到：</p>
-<pre><code class="language-text">Effective-view: +0.63%
+<div><pre><code class="language-text">Effective-view: +0.63%
 Long-view:      +0.58%
 Like:           +0.61%
-Follow:         +1.04%
-</code></pre>
+Follow:         +1.04%</code></pre></div>
 <p>这里有两个观察点。</p>
 <p>第一，RankMixer、HyFormer、MixFormer 已经把参数量扩到了 490M 左右，并且显著强于 SIM+DCN，说明 component scaling 和 feature-space co-scaling 本身是有效的。</p>
 <p>第二，UniFormer 参数量只比这些强 baseline 略高，但效果继续提升，尤其 Follow 任务提升明显。这说明 task-space modeling 不是锦上添花，而是在多目标排序里确实补上了一块能力。</p>
 <h3>9.2 消融实验</h3>
 <p>论文考察了几种变体：</p>
-<pre><code class="language-text">w/o Multi-seq CA:
+<div><pre><code class="language-text">w/o Multi-seq CA:
   用共享 cross-attention 替代 multi-sequence cross-attention
 
 w/o IE:
@@ -417,206 +258,37 @@ w/o S-FFNs:
   序列侧用共享 FFN
 
 w/o NS-FFNs:
-  非序列侧用共享 FFN
-</code></pre>
+  非序列侧用共享 FFN</code></pre></div>
 <p>结论是 UniFormer 在所有任务上都优于这些消融版本。尤其去掉 Multi-seq CA 会对互动类指标造成明显下降，说明异构行为序列分开建模确实有助于防止偏好坍缩。去掉 S-FFNs 或 NS-FFNs 的下降也很明显，说明 multi-view FFNs 对参数扩容质量非常重要。</p>
 <h3>9.3 Scaling Analysis</h3>
 <p>论文通过增加 multi-view FFNs 的 hidden dimension 做 scaling analysis，观察到参数增加时 GAUC gain 持续提升。这个结果是 UniFormer 论文标题里 “scaling” 的关键支撑。</p>
 <p>值得注意的是，论文不是证明“所有推荐模型都有稳定 scaling law”，而是证明在 UniFormer 这种分空间、分视角的架构里，继续加参数能比较稳定地转化为排序收益。</p>
 <h3>9.4 线上 A/B</h3>
 <p>论文在快手和快手极速版两个生产场景做了 7 天线上 A/B，实验流量为 5%。线上结果如下：</p>
-<table>
-<thead>
-<tr>
-<th>Category</th>
-<th>Metric</th>
-<th align="right">Kuaishou Lite</th>
-<th align="right">Kuaishou</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Engagement</td>
-<td>App Stay Time</td>
-<td align="right">+0.260%</td>
-<td align="right">+0.101%</td>
-</tr>
-<tr>
-<td>Engagement</td>
-<td>Watch Time</td>
-<td align="right">+1.113%</td>
-<td align="right">+0.729%</td>
-</tr>
-<tr>
-<td>Engagement</td>
-<td>Video View</td>
-<td align="right">+0.252%</td>
-<td align="right">+0.249%</td>
-</tr>
-<tr>
-<td>Interaction</td>
-<td>Like</td>
-<td align="right">+1.089%</td>
-<td align="right">+0.155%</td>
-</tr>
-<tr>
-<td>Interaction</td>
-<td>Comment</td>
-<td align="right">+1.818%</td>
-<td align="right">+1.488%</td>
-</tr>
-<tr>
-<td>Interaction</td>
-<td>Collect</td>
-<td align="right">+0.930%</td>
-<td align="right">+0.647%</td>
-</tr>
-<tr>
-<td>Interaction</td>
-<td>Forward</td>
-<td align="right">+1.274%</td>
-<td align="right">+0.157%</td>
-</tr>
-</tbody></table>
+<table><tbody><tr><th>Category</th><th>Metric</th><th>Kuaishou Lite</th><th>Kuaishou</th></tr><tr><td>Engagement</td><td>App Stay Time</td><td>+0.260%</td><td>+0.101%</td></tr><tr><td>Engagement</td><td>Watch Time</td><td>+1.113%</td><td>+0.729%</td></tr><tr><td>Engagement</td><td>Video View</td><td>+0.252%</td><td>+0.249%</td></tr><tr><td>Interaction</td><td>Like</td><td>+1.089%</td><td>+0.155%</td></tr><tr><td>Interaction</td><td>Comment</td><td>+1.818%</td><td>+1.488%</td></tr><tr><td>Interaction</td><td>Collect</td><td>+0.930%</td><td>+0.647%</td></tr><tr><td>Interaction</td><td>Forward</td><td>+1.274%</td><td>+0.157%</td></tr></tbody></table>
 <p>这些数字看起来没有离线论文那么夸张，但在亿级 DAU 主推荐场景里，App Stay Time、Watch Time 这种核心指标能稳定正向已经很有分量。尤其 Watch Time 在两个场景分别 +1.113% 和 +0.729%，说明模型不只是优化了某个互动小目标，而是对核心消费时长有实质贡献。</p>
 <p>效率方面，线上每个 request 同时打分 512 个候选 item。通过 user-item decoupling，UniFormer 相比原版本 QPS 提升 48%，同时 GAUC 损失可以忽略。这说明它不是一个只能离线跑分的“大而慢”模型，而是有明确 serving 设计的工业模型。</p>
-<h2>10. UniFormer 和其他模型的关系</h2>
-<p>可以用下面这张表理解 UniFormer 的位置。</p>
-<table>
-<thead>
-<tr>
-<th>方法</th>
-<th>主要扩容位置</th>
-<th align="right">是否建模序列</th>
-<th align="right">是否统一特征交互</th>
-<th align="right">是否显式建模 task space</th>
-<th>典型问题</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>SIM+DCN</td>
-<td>序列检索 + 特征交叉</td>
-<td align="right">是</td>
-<td align="right">部分</td>
-<td align="right">否</td>
-<td>组件割裂</td>
-</tr>
-<tr>
-<td>RankMixer</td>
-<td>特征交互</td>
-<td align="right">弱依赖外部序列模块</td>
-<td align="right">是</td>
-<td align="right">否</td>
-<td>task 仍在后端</td>
-</tr>
-<tr>
-<td>HyFormer / MixFormer</td>
-<td>序列 + 非序列 feature space</td>
-<td align="right">是</td>
-<td align="right">是</td>
-<td align="right">否或较弱</td>
-<td>主要停留在 feature space</td>
-</tr>
-<tr>
-<td>MMoE / PLE / HoME</td>
-<td>多任务专家</td>
-<td align="right">依赖前端表征</td>
-<td align="right">否</td>
-<td align="right">是</td>
-<td>feature 与 task 交互不足</td>
-</tr>
-<tr>
-<td>UniFormer</td>
-<td>feature space + task space</td>
-<td align="right">是</td>
-<td align="right">是</td>
-<td align="right">是</td>
-<td>架构与 serving 更复杂</td>
-</tr>
-</tbody></table>
-<p>UniFormer 的特点是把两条路线接上了：</p>
-<pre><code class="language-text">行为序列 / 特征交叉路线
-  +
-多任务建模路线
-</code></pre>
-<p>它不否定 MMoE、SIM、RankMixer、HyFormer 这些思路，而是把它们背后的能力重新组织到一个 Transformer-style 的统一框架里。</p>
-<h2>11. 我的理解：UniFormer 的真正贡献</h2>
-<p>我认为 UniFormer 最有价值的地方不是某个单点模块，而是三个设计取舍。</p>
-<h3>11.1 它把 task modeling 前移了</h3>
+<h3>10. 贡献</h3>
+<h3>10.1 把 task modeling 前移了</h3>
 <p>很多多任务排序模型是在 feature representation 已经形成后，再通过 tower 或 expert 做任务适配。这样做的问题是，如果 shared representation 本身没有保留某个任务需要的信息，后面的 tower 很难凭空恢复。</p>
 <p>TIM 让 task token 在中间层主动读取 feature tokens，相当于让任务更早参与特征选择。对于多目标排序，这比最后接几个 tower 更自然。</p>
-<h3>11.2 它用 cross-attention 代替全空间暴力 self-attention</h3>
+<h3>10.2 用 cross-attention 代替全空间暴力 self-attention</h3>
 <p>UniFormer 看起来像 Transformer，但它不是把所有 token 混在一起全连接。它的核心是大量使用 cross-attention：</p>
-<pre><code class="language-text">semantic query tokens -&gt; read behavior sequences
-task tokens -&gt; read high-order feature tokens
-</code></pre>
-<p>这种 read-from-memory 的结构很适合推荐系统，因为推荐系统有大量长序列、多域、多类型稀疏特征。全量 self-attention 太贵，而 query-based cross-attention 更像“从复杂日志里抽取当前决策需要的信息”。</p>
-<h3>11.3 它把 serving dependency 纳入了模型结构设计</h3>
+<div><pre><code class="language-text">semantic query tokens -&gt; read behavior sequences
+task tokens -&gt; read high-order feature tokens</code></pre></div>
+<p>这种 read-from-memory 的结构很适合<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8E%A8%E8%8D%90%E7%B3%BB%E7%BB%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLmjqjojZDns7vnu58iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.HZfPmSK4xuvtU26TrmczmY-ah1E3XzFcshjLpXeAivw&amp;zhida_source=entity" target="_blank" rel="noreferrer">推荐系统</a></span>，因为推荐系统有大量长序列、多域、多类型稀疏特征。全量 self-attention 太贵，而 query-based cross-attention 更像“从复杂日志里抽取当前决策需要的信息”。</p>
+<h3>10.3 把 serving dependency 纳入了模型<span><a href="https://zhida.zhihu.com/search?content_id=279836245&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ1MDQsInEiOiLnu5PmnoTorr7orqEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzk4MzYyNDUsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.lbSm5zVrlqEyzM1_fwPwNjMzVxS6vjfOwnfIGKhvMik&amp;zhida_source=entity" target="_blank" rel="noreferrer">结构设计</a></span></h3>
 <p>很多论文先设计模型，再想办法优化 serving。UniFormer 反过来很早就考虑：</p>
-<pre><code class="language-text">哪些 token 依赖 user？
+<div><pre><code class="language-text">哪些 token 依赖 user？
 哪些 token 依赖 item？
 哪些计算可以 request-level 复用？
-哪些 attention 边会破坏复用？
-</code></pre>
+哪些 attention 边会破坏复用？</code></pre></div>
 <p>因此 semantic tokenization、item-dependent 行为聚合、attention mask、lazy KV 并不是附属优化，而是架构本身的一部分。</p>
-<h2>12. 局限与可讨论点</h2>
-<p>UniFormer 很强，但也有一些值得追问的地方。</p>
+<h3>11. 局限</h3>
 <p>第一，架构复杂度明显上升。FIM、TIM、multi-sequence CA、multi-view FFNs、adaptive fusion、user-item decoupling、variable-length FlashAttention 都需要系统配合。对于中小规模业务，SIM+DCN、DIN+MMoE、PLE 这类简单架构可能更划算。</p>
 <p>第二，论文主要验证快手内部工业数据，公开数据集缺失。工业推荐论文常见这个问题：线上结果最有说服力，但外部复现很难。</p>
 <p>第三，user-item decoupling 会引入一定表达约束。为了复用用户侧计算，模型需要限制 user-side queries 对 item-side keys 的注意力。这会不会损失某些强 user-item 交叉能力，取决于候选规模、特征设计和后续 item-dependent 分支是否足够补偿。</p>
-<p>第四，task token 的可解释性还有进一步空间。论文展示了 feature-task attention pattern，例如时长类任务更关注 item 统计特征，互动类任务更关注某些用户特征。但 task attention 能否稳定用于诊断多目标冲突，还需要更多线上分析。</p>
-<h2>13. 如果落地到自己的推荐系统，该怎么借鉴</h2>
-<p>如果你的系统还处在中等规模，不必直接复刻 UniFormer。更实用的迁移路径可以是：</p>
-<p>第一步，先做 semantic feature grouping。把用户画像、上下文、item 统计、user-item cross、短期序列、长期序列分清楚，而不是无脑 concat。</p>
-<p>第二步，引入 query-to-sequence cross-attention。用少量非序列语义 token 读取短期、长期、搜索序列，替代把所有行为拼成一个大序列。</p>
-<p>第三步，在多任务模型里引入 task token。先不用完整 TIM，也可以让每个 task token 对 shared feature tokens 做一次 cross-attention，再接 task head。</p>
-<p>第四步，再考虑 multi-view FFNs。不同序列、不同特征组、不同任务可以逐步从 shared FFN 拆成 group-specific FFN。</p>
-<p>第五步，最后再做 user-item decoupling。只有当线上候选量大、延迟压力明显时，这部分收益才会真正体现。</p>
-<h2>14. 面试中怎么讲 UniFormer</h2>
-<p>如果面试被问到快手 UniFormer，可以这样回答：</p>
-<pre><code class="language-text">UniFormer 是快手提出的工业推荐排序 model-centric co-scaling 框架。
-它认为过去很多扩容只扩行为序列、特征交叉或多任务某一个组件，
-而 UniFormer 把整体建模空间拆成 feature space 和 task space。
-
-feature space 用 FIM 建模序列与非序列特征：
-  用 multi-sequence cross-attention 分别读取短期、长期等异构行为序列，
-  防止偏好坍缩；
-  再用 self-attention 和 NS-FFN 做非序列高阶交互。
-
-task space 用 TIM 建模任务与特征、任务与任务之间的关系：
-  每个任务是一个 task token，
-  task token 对 FIM 输出做 cross-attention，
-  再通过 task self-attention 建模多目标相关性。
-
-工程上，它通过 semantic tokenization、lazy KV、user-level common compression、
-variable-length FlashAttention 和 user-item decoupling 控制训练与推理成本。
-线上 A/B 在快手和快手极速版均提升了 App Stay Time、Watch Time 和互动指标。
-</code></pre>
-<p>如果进一步追问“它和 HyFormer/MixFormer 的区别”，可以强调：</p>
-<pre><code class="language-text">HyFormer/MixFormer 主要把行为序列和非序列特征放在 feature space 里联合扩容；
-UniFormer 进一步把 task space 纳入统一交互，让任务 token 参与中间层建模。
-所以它不只是 feature co-scaling，而是 feature-task co-scaling。
-</code></pre>
-<p>如果追问“为什么不用 full attention”，可以回答：</p>
-<pre><code class="language-text">工业推荐的 token 数由多行为序列、多特征组、多任务和多候选共同决定。
-全量 full attention 成本过高，也不利于 user-item decoupling。
-UniFormer 用语义 query 做 cross-attention，从长序列中抽取信息，
-再在较小 token 集合上 self-attention，是表达能力和 serving 成本的折中。
-</code></pre>
-<h2>15. 总结</h2>
-<p>UniFormer 的核心不是“推荐版 Transformer”，而是一个面向工业排序的大模型化设计原则：</p>
-<pre><code class="language-text">不要只扩某个模块，要扩整个建模空间；
-不要只建模 feature，要让 task 也进入模型内部；
-不要只追求统一结构，要让统一结构能在线复用和低延迟服务。
-</code></pre>
-<p>它把推荐排序模型拆成 feature space 和 task space，用 FIM 处理序列与非序列特征，用 TIM 处理任务对特征的选择和任务之间的关系，再通过 multi-view FFNs 支持参数可扩展分配。</p>
-<p>从实验看，UniFormer 在快手工业数据上优于 SIM+DCN、SIM+RankMixer、HyFormer、MixFormer，并且 UniFormer-Large 继续随参数扩容提升。线上 A/B 也验证了它在核心时长和互动指标上的收益。更重要的是，它通过 semantic tokenization 和 user-item decoupling 把 500M 到 1B 级 dense 模型做到了可服务，这一点比离线 GAUC 本身更能体现工业推荐论文的含金量。</p>
-<p>一句话收束：<strong>UniFormer 给出的不是一个单点 trick，而是一套把推荐排序模型继续做大、同时还能服务在线主场景的架构范式。</strong></p>
-<h2>参考资料</h2>
-<ol>
-<li>Bo Chen et al. UniFormer: Efficient and Unified Model-Centric Scaling for Industrial Recommendation. arXiv:2606.27058. <a href="https://arxiv.org/abs/2606.27058">https://arxiv.org/abs/2606.27058</a></li>
-<li>arXiv HTML version. <a href="https://arxiv.org/html/2606.27058v1">https://arxiv.org/html/2606.27058v1</a></li>
-</ol>
-<div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+<p>第四，task token 的可解释性还有进一步空间。论文展示了 feature-task attention pattern，例如时长类任务更关注 item 统计特征，互动类任务更关注某些用户特征。但 task attention 能否稳定用于诊断多目标冲突，还需要更多线上分析。</p></div><div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>

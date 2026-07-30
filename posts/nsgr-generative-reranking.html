@@ -23,10 +23,309 @@
         <div class="article-meta"><span>生成式推荐</span><span>克西</span><time datetime="2026-06-02">2026.06.02</time><span>4 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2045225107149304382" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><h3>0. 写在前面</h3><p>这篇论文讨论的是推荐系统最末端的 <b>reranking 重排</b>。</p><p>现代推荐系统简化成三段：</p><div><pre><code class="language-text">召回 matching
-  -&gt; 粗/精排 ranking
-  -&gt; 重排 reranking</code></pre></div><p>那么重排阶段面对的问题不是“单个 item 该不该推荐”，而是：给定一组候选 item，如何生成一个整体最优的展示列表？</p><p>这和 ranking 很不一样。Ranking 通常对 item 单独打分，再排序；reranking 要考虑位置、上下文、相邻 item 之间的互相影响、多样性、转化链路和整页收益。美团外卖这种场景尤其明显：一个店铺或商品放在第 1 位、第 3 位、第 8 位，效果完全不同；两个相似商家挨在一起，也可能互相抢点击。</p><p>论文提出的 <b>Next-Scale Generation Reranking</b>，核心思想是：不要从左到右一个个生成，也不要一步生成完整列表，而是用树形 coarse-to-fine 的方式，逐层把候选集合切成前半段/后半段，最后得到完整排序。</p><p>线上收益也很好：在美团 CPS 业务中，NSGR(20) 相比 baseline YOLOR(8)，线上 <b>CTR +2.89%</b>、<b>GMV +</b></p></div>
-      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+      <div class="article-body"><h3>0. 写在前面</h3>
+<p>这篇论文讨论的是<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8E%A8%E8%8D%90%E7%B3%BB%E7%BB%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLmjqjojZDns7vnu58iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.lHyj24Q9YDQzd7JP673KdlgCq9ZMluChsuwe6qZsiXI&amp;zhida_source=entity" target="_blank" rel="noreferrer">推荐系统</a></span>最末端的 <b>reranking 重排</b>。</p>
+<p>现代推荐系统简化成三段：</p>
+<div><pre><code class="language-text">召回 matching
+  -&gt; 粗/<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E7%B2%BE%E6%8E%92&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLnsr7mjpIiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.J8bceabpzbIhCYd8vKpCXTK-vu9ZilZR1NAMF-9LOSg&amp;zhida_source=entity" target="_blank" rel="noreferrer">精排</a></span> ranking
+  -&gt; 重排 reranking</code></pre></div>
+<p>那么重排阶段面对的问题不是“单个 item 该不该推荐”，而是：给定一组候选 item，如何生成一个整体最优的展示列表？</p>
+<p>这和 ranking 很不一样。Ranking 通常对 item 单独打分，再排序；reranking 要考虑位置、上下文、相邻 item 之间的互相影响、多样性、转化链路和整页收益。<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BE%8E%E5%9B%A2%E5%A4%96%E5%8D%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLnvo7lm6LlpJbljZYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.PyF_hC-8FbYLVihIiqGcup4jqII6BGfgOmbgqfmqnzk&amp;zhida_source=entity" target="_blank" rel="noreferrer">美团外卖</a></span>这种场景尤其明显：一个店铺或商品放在第 1 位、第 3 位、第 8 位，效果完全不同；两个相似商家挨在一起，也可能互相抢点击。</p>
+<p>Y-3EC7"&gt;论文提出的 <b><span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=Next-Scale+Generation+Reranking&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiJOZXh0LVNjYWxlIEdlbmVyYXRpb24gUmVyYW5raW5nIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc2MDkwMjQ3LCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.RfCQedTvt6L_ZDaYhKM95hdPfqrxOYKmENrkqHylfA8&amp;zhida_source=entity" target="_blank" rel="noreferrer">Next-Scale Generation Reranking</a></span></b>，核心思想是：不要从左到右一个个生成，也不要一步生成完整列表，而是用树形 <span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=coarse-to-fine&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiJjb2Fyc2UtdG8tZmluZSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NjA5MDI0NywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.yoTFulbc1yUcxPPklAxMDUMIj1As1AXsMa-dOmTRzpo&amp;zhida_source=entity" target="_blank" rel="noreferrer">coarse-to-fine</a></span> 的方式，逐层把候选集合切成前半段/后半段，最后得到完整排序。</p>
+<p>线上收益也很好：在<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BE%8E%E5%9B%A2+CPS+%E4%B8%9A%E5%8A%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLnvo7lm6IgQ1BTIOS4muWKoSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NjA5MDI0NywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.FDWqVqBbKjpYfaC5Fc2C40bSeo6pEB3mkb5-_kNCKv8&amp;zhida_source=entity" target="_blank" rel="noreferrer">美团 CPS 业务</a></span>中，NSGR(20) 相比 baseline YOLOR(8)，线上 <b>CTR +2.89%</b>、<b>GMV +3.15%</b>，并且 cost 还减少 <b>1.4ms</b>。该方法已经部署在美团外卖平台，服务百万级用户。</p>
+<p>与之前的 <span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=MTGR&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiJNVEdSIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc2MDkwMjQ3LCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.cPYlSy3N5hKTdt6tRxxzCLbBN-ObLY1zohSbXtsrTio&amp;zhida_source=entity" target="_blank" rel="noreferrer">MTGR</a></span> 相比：</p>
+<div><pre><code class="language-text">MTGR：扩展 ranking model，让候选打分更强
+NSGR：扩展 reranking model，让最终列表组合更优</code></pre></div>
+<h3>1. 重排为什么是一个<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BB%84%E5%90%88%E4%BC%98%E5%8C%96&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLnu4TlkIjkvJjljJYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.-cK-azmqczZa0cG5Si4vcMuTCClwtwwU4_yaWvGw79Y&amp;zhida_source=entity" target="_blank" rel="noreferrer">组合优化</a></span>问题</h3>
+<p>假设 ranking 阶段给了 20 个候选，reranking 要从中排出 20 个位置。理论排列空间是：</p>
+<div><pre><code class="language-text">20! ≈ 2.43e18</code></pre></div>
+<p>如果只取前 8 个重排，也有：</p>
+<div><pre><code class="language-text">8! = 40320</code></pre></div>
+<p>这说明重排的难点不是单个 item 打分，而是<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8E%92%E5%88%97%E7%BB%84%E5%90%88&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLmjpLliJfnu4TlkIgiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.TTJxa0h1VkKZyL68HTW_NXQ-pmUFPHhRT0YWK1GQFzc&amp;zhida_source=entity" target="_blank" rel="noreferrer">排列组合</a></span>空间巨大。</p>
+<p>传统 point-wise ranking 只学习：</p>
+<div><pre><code class="language-text">score(user, item)</code></pre></div>
+<p>然后按分数排序。它忽略了：</p>
+<ol><li>item 之间的互相影响。</li><li>不同位置的曝光价值。</li><li>列表整体多样性和互补性。</li><li>转化目标和整页 GMV 的<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BB%84%E5%90%88%E6%95%88%E5%BA%94&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLnu4TlkIjmlYjlupQiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.dfXnZsde80hb4oOU3BlfgHPUnIByJyfDdNSHfdmbJO0&amp;zhida_source=entity" target="_blank" rel="noreferrer">组合效应</a></span>。</li></ol>
+<p>因此 reranking 的目标更接近：</p>
+<div><pre><code class="language-text">argmax_list Utility(user, ordered_list)</code></pre></div>
+<p>问题是，所有 permutation 都评估一遍在线不可行。NSGR 就是在这个组合空间里找一种高效生成优质列表的方法。</p>
+<h3>2. 现有生成式重排的三类范式</h3>
+<figure><div><img src="../assets/posts/nsgr-generative-reranking/01.jpg" alt="NSGR：生成式重排 配图 1" loading="lazy" decoding="async"></div></figure>
+<p>论文把现有 generative reranking 分成三类。</p>
+<h3>2.1 Autoregressive：从左到右一个个生成</h3>
+<p>这种方法类似语言模型：</p>
+<div><pre><code class="language-text">position 1 -&gt; position 2 -&gt; position 3 -&gt; ...</code></pre></div>
+<p>优点是局部依赖强。生成第 <code>k</code> 个位置时，可以知道前面已经放了什么。</p>
+<p>缺点也明显：</p>
+<ol><li>慢，需要逐位置解码。</li><li>只能看已生成部分，缺少对未来位置的全局规划。</li><li>早期错误会传递到后面。</li></ol>
+<p>在重排里，这很危险。因为第 1 位选择不仅影响第 2 位，还影响整页结构。如果只按左到右贪心，很容易<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E5%B1%80%E9%83%A8%E6%9C%80%E4%BC%98&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLlsYDpg6jmnIDkvJgiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.doe53cASsYq8-zWSRAcHCX7-xeoB_hY39b34tk8LyDc&amp;zhida_source=entity" target="_blank" rel="noreferrer">局部最优</a></span>。</p>
+<h3>2.2 One-step：一步生成完整位置概率矩阵</h3>
+<p>这种方法一次性输出所有 item 到所有 position 的概率：</p>
+<p><span class="math-inline">\(P(item_i -&gt; position_j)\)</span> </p>
+<p>优点是快，有全局视角。</p>
+<p>缺点是太粗。一步直接从候选集合跳到完整排列，缺少逐层细化过程，复杂业务场景下建模难度很大。</p>
+<h3>2.3 Multi-step：从初始列表逐步交换</h3>
+<p>这类方法从 ranking 给出的初始列表出发，每次交换 1-2 个 item，逐步接近更优列表。</p>
+<p>优点是比 one-step 更细，且比 <span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=autoregressive&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiJhdXRvcmVncmVzc2l2ZSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NjA5MDI0NywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.OWPp0nH7tTmmQ52i3Hk3C7AmBsb5ctHLBplrTcv-PEs&amp;zhida_source=entity" target="_blank" rel="noreferrer">autoregressive</a></span> 更有全局修正空间。</p>
+<p>缺点是容易陷入局部最优。排列空间是非单调的，有时候一个局部交换看起来不好，但连续几步之后整体变好。只做局部 swap 很容易走不出去。</p>
+<h3>3. NSGR 的基本想法：Next-Scale 生成</h3>
+<p>NSGR 提出第四种范式：<b>next-scale generation</b>。</p>
+<div><pre><code class="language-text">先决定哪些 item 在前半段、哪些在后半段；
+再分别决定每个半段里的前半段和后半段；
+不断二分，直到每个<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E5%8F%B6%E5%AD%90%E8%8A%82%E7%82%B9&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLlj7blrZDoioLngrkiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.-kdE-b93pZCc8TzY70wEdZPvQDfGVHLkUz-f87iA_uo&amp;zhida_source=entity" target="_blank" rel="noreferrer">叶子节点</a></span>对应一个最终位置。</code></pre></div>
+<p>如果列表长度是 4，生成过程可以理解为：</p>
+<div><pre><code class="language-text">候选集合 {A, B, C, D}
+
+第 1 层：
+  选出应该进入前 2 位的 item
+  剩下进入后 2 位
+
+第 2 层：
+  在前 2 位集合里选出第 1 位和第 2 位
+  在后 2 位集合里选出第 3 位和第 4 位
+
+最终得到完整列表</code></pre></div>
+<p>如果列表长度是 8，则是：</p>
+<div><pre><code class="language-text">8 -&gt; 4 + 4 -&gt; 2 + 2 + 2 + 2 -&gt; 1 + ... + 1</code></pre></div>
+<p>这就是论文说的：</p>
+<div><pre><code class="language-text">one-generates-two, two-generate-four</code></pre></div>
+<p>它的好处是同时有全局和局部视角：</p>
+<ol><li>顶层二分时看全局，决定大致哪些 item 该靠前。</li><li>底层二分时看局部，决定相近位置之间的<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E7%BB%86%E7%B2%92%E5%BA%A6&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLnu4bnspLluqYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.i_XO03gYIH0p4zPl40PLR28OFq8-1QPbeboqI0pvmB4&amp;zhida_source=entity" target="_blank" rel="noreferrer">细粒度</a></span>顺序。</li></ol>
+<p>这比 AR 更全局，比 one-step 更细，比 multi-step 更不容易困在局部 swap。</p>
+<h3>4. NSGR 总体结构</h3>
+<figure><div><img src="../assets/posts/nsgr-generative-reranking/02.jpg" alt="NSGR：生成式重排 配图 2" loading="lazy" decoding="async"></div></figure>
+<p>NSGR 有两个核心模块：</p>
+<div><pre><code class="language-text">NSG: Next-Scale Generator
+MSE: <span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=Multi-Scale+Evaluator&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiJNdWx0aS1TY2FsZSBFdmFsdWF0b3IiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.iYjI0FVsD2Yc8s2eSxb7n8-gA_phf24CLoQ9xe5Fzpo&amp;zhida_source=entity" target="_blank" rel="noreferrer">Multi-Scale Evaluator</a></span></code></pre></div>
+<p>再加一个训练机制：</p>
+<div><pre><code class="language-text">MSNL: Multi-Scale Neighbor Loss</code></pre></div>
+<p>分工如下：</p>
+<ol><li><b>MSE</b>：负责评估一个列表的 list-wise value，类似 reward model / evaluator。</li><li><b>NSG</b>：负责用树形 coarse-to-fine 方式生成最终排序。</li><li><b>MSNL</b>：用 MSE 对生成列表和邻居列表打分，构造相对训练信号，指导 NSG。</li></ol>
+<p>和很多生成式重排框架一样，采用 generator + evaluator 的两阶段思路。但 NSGR 的特点是：generator 和 evaluator 都是 tree-based multi-scale 结构，训练信号也在多尺度节点上构造。</p>
+<h3>5. 输入表示：用户兴趣、候选 item 和短期行为</h3>
+<p>图 2 里 NSGR 的输入主要有三块。</p>
+<h3>5.1 用户长期兴趣</h3>
+<p>论文使用用户 lifelong sequence，并用 SID 表示：User Lifelong Sequence </p>
+<p>例如：</p>
+<p><span class="math-inline">\(a_6 \ b_1 \ c_5 \  ... a_2  \ b_1 \ c_7\)</span> </p>
+<p>这和生成式推荐中的 semantic ID 思路一致。长期序列用于提取用户全局兴趣。</p>
+<h3>5.2 候选 item</h3>
+<p>候选 item 同时使用：</p>
+<div><pre><code class="language-text">SID + ID</code></pre></div>
+<p>SID 提供<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%AD%E4%B9%89%E7%BB%93%E6%9E%84&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLor63kuYnnu5PmnoQiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.hgP4NL3ZPk2PhmKtx4AbVY7Iyc5AR9U_7HQbsTbcztQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">语义结构</a></span>，ID 保留具体 item 的身份记忆。</p>
+<h3>5.3 用户短期行为</h3>
+<p>短期序列也使用：</p>
+<div><pre><code class="language-text">SID + ID</code></pre></div>
+<p>短期行为用于捕捉近期意图，例如用户最近正在看某类商家或商品。</p>
+<p>这三类输入会进入 HSTU、Set Attention、Target Attention 等模块，形成候选 item 的上下文表示。</p>
+<h3>6. Multi-Scale Evaluator：评价一个列表</h3>
+<p>MSE 的目标是：给定用户 u 和有序列表 L，估计 list-wise utility</p>
+<p>它不是只对 item 单独打分，而是要让每个位置的预测都感知多尺度上下文。</p>
+<h3>6.1 列表语义<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E5%90%91%E9%87%8F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLlkJHph48iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.XD1zWnD2VMJvlfnWAC97j83mTZI-bbb8Lf0rQ6Rd3e8&amp;zhida_source=entity" target="_blank" rel="noreferrer">向量</a></span></h3>
+<p>对一个候选列表，MSE 先得到每个位置上的 item 表示：</p>
+<p><span class="math-inline">\(L = {x_1, x_2, ..., x_m}\)</span> </p>
+<p>这里 <code>x_i</code> 已经融合了 item 语义、用户兴趣、短期行为等信息。</p>
+<h3>6.2 多尺度上下文</h3>
+<p>MSE 对每个位置提取不同尺度的上下文。例如列表长度为 8，对某个位置来说，可以看：</p>
+<div><pre><code class="language-text">全列表尺度：positions 1-8
+半列表尺度：positions 1-4 或 5-8
+局部尺度：positions 1-2, 3-4, ...</code></pre></div>
+<p>论文用 multi-scale self-attention 来计算这些上下文：</p>
+<div><pre><code class="language-text">scale 1: whole list context
+scale 2: half-list context
+...
+scale log2(m): pair-level context</code></pre></div>
+<p>这样每个 item 的得分不仅看自己，也看它所在的局部组、半局部组和全局列表。</p>
+<h3>6.3 位置感知预测</h3>
+<p>最终每个位置的预测整合三类信息：</p>
+<div><pre><code class="language-text">item semantics
+multi-scale context
+position embedding</code></pre></div>
+<p>可以理解成：</p>
+<p><span class="math-inline">\(\[ \hat{y}_i = \operatorname{sigmoid}\left(\operatorname{MLP}\left(item_i, context_i, position_i\right)\right) \]\)</span> </p>
+<p>然后列表价值是各位置预测的聚合：</p>
+<p><span class="math-inline">\(\[ \operatorname{value}(\operatorname{list}) = \sum_i \hat{y}_i \]\)</span> </p>
+<p>这个 value 可以根据业务目标调整，例如：</p>
+<div><pre><code class="language-text">IMPR
+CVR
+GMV</code></pre></div>
+<p>MSE 用线上日志训练，包括曝光、点击、转化等信号。损失是典型的逐位置 BCE，但它的表示是 list-aware 的。</p>
+<h3>7. Next-Scale Generator：树形生成列表</h3>
+<p>NSG 是论文最核心的模块。它做的是：</p>
+<div><pre><code class="language-text">输入一个候选子集
+输出哪些 item 应该进入该<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E5%AD%90%E5%8C%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLlrZDljLrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.e_ul3Fe2MijyRno8d8XKNTabem4oOFwLW8e8sICQyhY&amp;zhida_source=entity" target="_blank" rel="noreferrer">子区间</a></span>的前半段
+<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E9%80%92%E5%BD%92&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLpgJLlvZIiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.8XkJABoD9NA-O0xv-PkvjzyHeEzP9kxOk3LD9R6zD5w&amp;zhida_source=entity" target="_blank" rel="noreferrer">递归</a></span>直到得到完整排序</code></pre></div>
+<p>假设当前节点负责位置区间 <code>[l, r]</code>，对应一个候选子集：</p>
+<p><span class="math-inline">\(X_{l:r} = {x_l, x_{l+1}, ..., x_r}\)</span> </p>
+<p>NSG 要把它拆成前后两部分，判断每个 item 在当前尺度上该“靠前”还是“靠后”。</p>
+<h3>7.1 Item priority</h3>
+<p>首先，NSG 给每个 item 计算一个 individual priority：</p>
+<p><span class="math-inline">\(p_i = MLP_p(x_i)\)</span> </p>
+<p>它表示 item 自身相关性。这个分数不是最终排序，只是后续关系建模的一个输入。</p>
+<h3>7.2 Pairwise relationship</h3>
+<p>然后 NSG 对每对 item 判断关系：</p>
+<div><pre><code class="language-text">competitive suppression
+complementary enhancement
+neutral coexistence</code></pre></div>
+<p>这三个关系很有推荐味道。</p>
+<ol><li><b>competitive suppression</b>：两个 item 竞争强，例如两个相似商家同时出现，强者压制弱者。</li><li><b>complementary enhancement</b>：两个 item 互补，例如主食和饮品、套餐和小吃，组合更好。</li><li><b>neutral coexistence</b>：基本互不影响。</li></ol>
+<p>论文用 pairwise classifier 输出这三类关系的概率。</p>
+<h3>7.3 Asymmetric influence</h3>
+<p>竞争关系是<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E9%9D%9E%E5%AF%B9%E7%A7%B0&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLpnZ7lr7nnp7AiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.bIOMTXBCOmTWKIEd-1Lmsi46qsorqu9WRFRO_O5qNf4&amp;zhida_source=entity" target="_blank" rel="noreferrer">非对称</a></span>的：高优先级 item 可以压制低优先级 item</p>
+<p>互补关系更接近对称：两个 item 互相增强</p>
+<p>NSG 用这些关系计算 item 之间的影响权重，再更新每个 item 的表示。</p>
+<p>这一点很重要。重排不是只看单点相关性，而是看组合关系。NSG 把组合关系显式分成竞争、互补、中性，比单纯 <span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=2&amp;q=self-attention&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiJzZWxmLWF0dGVudGlvbiIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NjA5MDI0NywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoyLCJ6ZF90b2tlbiI6bnVsbH0.VxcLBXPTacDJK3R8tcl6RjKoXPcak2ugFVnz3LUXkpI&amp;zhida_source=entity" target="_blank" rel="noreferrer">self-attention</a></span> 更有结构化<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E5%BD%92%E7%BA%B3%E5%81%8F%E7%BD%AE&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLlvZLnurPlgY_nva4iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.QTHLumzOcVo6MTP17qTA5n4spIPgeeuhPMlU6jPPZu0&amp;zhida_source=entity" target="_blank" rel="noreferrer">归纳偏置</a></span>。</p>
+<h3>7.4 Binary split</h3>
+<p>更新 item 表示后，NSG 会计算每个 item 和当前<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E6%A0%91%E8%8A%82%E7%82%B9&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLmoJHoioLngrkiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.dnAUluul4fYTuzHI0Xq1r3J99wC7-lWxudq8madsejU&amp;zhida_source=entity" target="_blank" rel="noreferrer">树节点</a></span> anchor 的匹配分数：</p>
+<p><span class="math-inline">\(Sim_i = MLP_{scor}e(item_i, user_{context}, tree_{anchor})\)</span> </p>
+<p>然后取前一半进入当前区间的 front half：</p>
+<div><pre><code class="language-text">Flag+ = 1 if rank(i) &lt; half_size</code></pre></div>
+<p>剩余 item 进入 back half。</p>
+<p>递归执行，最后每个叶子节点只剩一个 item，对应最终位置。</p>
+<h3>8. 一个直观例子：长度为 8 的列表如何生成</h3>
+<p>假设候选有 8 个：</p>
+<div><pre><code class="language-text">A B C D E F G H</code></pre></div>
+<p>NSG 第一步不是选第 1 位，而是先分组：</p>
+<div><pre><code class="language-text">前 4 位候选：A C F H
+后 4 位候选：B D E G</code></pre></div>
+<p>第二步在两个组内继续拆：</p>
+<div><pre><code class="language-text">前 4 位组：
+  前 2 位候选：C H
+  后 2 位候选：A F
+
+后 4 位组：
+  前 2 位候选：D G
+  后 2 位候选：B E</code></pre></div>
+<p>第三步继续拆到单个位置：</p>
+<div><pre><code class="language-text">pos1: H
+pos2: C
+pos3: F
+pos4: A
+pos5: D
+pos6: G
+pos7: E
+pos8: B</code></pre></div>
+<p>最终列表：</p>
+<div><pre><code class="language-text">H C F A D G E B</code></pre></div>
+<p>这个过程的特点是：高层先决定大致靠前/靠后，低层再决定局部顺序。</p>
+<h3>9. Multi-Scale Neighbor Loss</h3>
+<p>Generator + evaluator 框架有一个老问题：<b>目标不一致</b>。</p>
+<p>Evaluator 学的是：给一个列表，估计它的价值</p>
+<p>Generator 学的是：在巨大排列空间里生成高价值列表</p>
+<p>如果直接用 evaluator 的绝对分数训练 generator，信号会很稀疏，也容易让 generator 只是拟合曝光分布或局部模式。</p>
+<p>NSGR 的解决方案是 <b>Multi-Scale Neighbor Loss, MSNL</b>。</p>
+<p>核心思想：</p>
+<div><pre><code class="language-text">不要只看生成列表本身的绝对分数；
+构造多个邻居列表，
+比较生成列表和邻居列表的相对 value，
+在每个 tree scale 上给 generator 训练信号。</code></pre></div>
+<h3>9.1 邻居列表怎么构造</h3>
+<p>对 NSG 生成的列表 <code>L_g</code>，构造 neighbor lists：</p>
+<ol><li>在 <code>L_g</code> 内部交换两个 item。</li><li>把 <code>L_g</code> 中某个 item 和候选池中其他 item 交换。</li></ol>
+<p>这些邻居列表相当于生成列表附近的 counterfactual alternatives。</p>
+<h3>9.2 用 MSE 计算相对 reward</h3>
+<p>MSE 分别评估： <span class="math-inline">\(value(L_g)、value(L_{neighbor})\)</span> </p>
+<p>然后计算相对差： <span class="math-inline">\(r_{neighbor} = value(L_{neighbor}) - value(L_g)\)</span> </p>
+<p>如果某个邻居比当前生成列表更好，generator 应该被拉向那个方向；如果更差，就应该远离。</p>
+<h3>9.3 为什么是 <span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=4&amp;q=multi-scale&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiJtdWx0aS1zY2FsZSIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NjA5MDI0NywiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjo0LCJ6ZF90b2tlbiI6bnVsbH0.2m5gDN1pUojygnAVAzq92IcwuXlNUa241Oex7fH8mUQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">multi-scale</a></span></h3>
+<p>因为 NSG 是树形生成，每个节点代表一个尺度：</p>
+<div><pre><code class="language-text">全局二分
+半局部二分
+局部二分</code></pre></div>
+<p>MSNL 不只在最终列表上给信号，而是在多尺度节点上给信号。论文还说 NSG 和 MSE 有相似树结构，因此可以用 MSE 的多尺度表示来指导 NSG 的多尺度表示，并把 neighbor list 的多尺度向量缓存起来，避免重复计算。</p>
+<p>这就是 MSNL 的价值：它把 evaluator 的 list-wise signal 转成 generator 在树形生成过程中可用的 scale-wise guidance。</p>
+<h3>10. 为什么 NSGR 比 AR/NAR/Multi-step 更合理</h3>
+<p>可以把四类方法对比如下：</p>
+<table><tbody><tr><th>范式</th><th>优点</th><th>缺点</th></tr><tr><td>Autoregressive</td><td>局部依赖强</td><td>慢，缺少未来全局视角，<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%AF%E5%B7%AE%E4%BC%A0%E6%92%AD&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLor6_lt67kvKDmkq0iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.Zyy7fPaqR6dcfvFTn1SF0f2lG4Vlq3yNiLIzkGwp0sM&amp;zhida_source=entity" target="_blank" rel="noreferrer">误差传播</a></span></td></tr><tr><td>One-step</td><td>快，有全局视角</td><td>太粗，缺少局部细化</td></tr><tr><td>Multi-step swap</td><td>可逐步修正</td><td>易陷入局部最优</td></tr><tr><td>Next-scale</td><td>全局到局部逐层细化</td><td>依赖树结构和训练信号设计</td></tr></tbody></table>
+<p>NSGR 的优势来自两点：</p>
+<ol><li>树形生成结构把排列空间分层搜索。</li><li>MSE/MSNL 在多尺度上提供相对训练信号。</li></ol>
+<p>它不像 AR 那样“从左到右窄视角”，也不像 one-step 那样“一口吃完整排列”。它更像在做 coarse-to-fine 的组合优化。</p>
+<h3>11. 实验设置</h3>
+<p>论文使用两个<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E6%95%B0%E6%8D%AE%E9%9B%86&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLmlbDmja7pm4YiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.NFbXWf9gqZnMYRKk9XNNatNjAHxCcjLfXP8iKGl1ryg&amp;zhida_source=entity" target="_blank" rel="noreferrer">数据集</a></span>。</p>
+<table><tbody><tr><th>Dataset</th><th>Users</th><th>Items</th><th>Records</th></tr><tr><td>Taobao Ad</td><td>1,141,729</td><td>99,815</td><td>26,557,961</td></tr><tr><td>Meituan</td><td>5,685,119</td><td>17,264,613</td><td>242,549,848</td></tr></tbody></table>
+<p>Taobao Ad 是公开广告数据，使用前 7 天训练，第 8 天测试。</p>
+<p>Meituan 是美团外卖工业数据，来自 2025 年 8 月，包含 15 天、2.42 亿条交互记录、239 个特征、三个标签：</p>
+<div><pre><code class="language-text">expose
+click
+conversion</code></pre></div>
+<p>注意：样本是 list-level，每条样本包含同一请求列表里的所有 item。论文还过滤掉全 0 或全 1 标签的样本。</p>
+<p>离线指标：AUC、GAUC、Loss、HR</p>
+<p>线上指标：CTR、CVR、GMV、Cost(ms)</p>
+<figure><div><img src="../assets/posts/nsgr-generative-reranking/03.jpg" alt="NSGR：生成式重排 配图 3" loading="lazy" decoding="async"></div></figure>
+<h3>12. Evaluator 离线效果</h3>
+<p>论文在 Taobao Ad 和 Meituan 上对比多类 reranking 方法。</p>
+<h3>12.1 Taobao Ad</h3>
+<table><tbody><tr><th>Model</th><th>AUC</th><th>GAUC</th><th>Loss</th></tr><tr><td>PRM</td><td>0.6052</td><td>0.8163</td><td>0.1842</td></tr><tr><td>GRN</td><td>0.6101</td><td>0.8209</td><td>0.1820</td></tr><tr><td>NAR4Rec</td><td>0.6306</td><td>0.8288</td><td>0.1786</td></tr><tr><td>DCDR</td><td>0.6217</td><td>0.8288</td><td>0.1792</td></tr><tr><td>NLGR</td><td>0.6344</td><td>0.8311</td><td>0.1752</td></tr><tr><td>YOLOR</td><td>0.6351</td><td>0.8323</td><td>0.1743</td></tr><tr><td>NSGR</td><td>0.6396</td><td>0.8389</td><td>0.1713</td></tr></tbody></table>
+<h3>12.2 Meituan</h3>
+<table><tbody><tr><th>Model</th><th>AUC</th><th>GAUC</th><th>Loss</th></tr><tr><td>PRM</td><td>0.8595</td><td>0.8573</td><td>0.1008</td></tr><tr><td>GRN</td><td>0.8643</td><td>0.8598</td><td>0.1001</td></tr><tr><td>NAR4Rec</td><td>0.8711</td><td>0.8636</td><td>0.0957</td></tr><tr><td>DCDR</td><td>0.8695</td><td>0.8616</td><td>0.0977</td></tr><tr><td>NLGR</td><td>0.8732</td><td>0.8644</td><td>0.0946</td></tr><tr><td>YOLOR</td><td>0.8749</td><td>0.8669</td><td>0.0932</td></tr><tr><td>NSGR</td><td>0.8902</td><td>0.8829</td><td>0.0842</td></tr></tbody></table>
+<p>NSGR 在 Meituan 上优势尤其明显。论文说相比最强 independent baseline，NSGR 在 Taobao/Meituan 上分别带来 <b>0.0045/0.0153 AUC</b> 和 <b>0.0047/0.0160 GAUC</b> 绝对提升。</p>
+<p>在工业重排里，0.016 GAUC 是比较大的提升。</p>
+<h3>13. Generator 一致性：HR 指标</h3>
+<p>只看 evaluator 的 AUC/GAUC 不够。因为最终线上用的是 generator 生成列表。如果 generator 找不到 evaluator 认为好的列表，evaluator 再准也没用。</p>
+<p>因此论文用 HR 衡量 generator 和 evaluator 的一致性：</p>
+<div><pre><code class="language-text">HR = generator 产生的 permutation set 是否包含最优 list</code></pre></div>
+<p>在 Meituan 上，结果如下：</p>
+<table><tbody><tr><th>Model</th><th>HR@1%</th><th>HR@10%</th></tr><tr><td>PRM</td><td>0.510</td><td>0.691</td></tr><tr><td>GRN</td><td>0.632</td><td>0.844</td></tr><tr><td>NAR4Rec</td><td>0.658</td><td>0.897</td></tr><tr><td>NLGR</td><td>0.784</td><td>0.916</td></tr><tr><td>YOLOR</td><td>0.822</td><td>0.943</td></tr><tr><td>NSGR</td><td>0.861</td><td>0.987</td></tr></tbody></table>
+<p>NSGR 的 HR@10% 达到 0.987，说明它生成的候选列表集合几乎总能覆盖 evaluator 认为很优的列表。</p>
+<p>论文还在 <code>8! = 40320</code> 的完整排列空间里做了更细分析。NSGR 的 exact match rate 是 0.689；如果允许 2/3/4 个 item 的总偏差，准确率提升到：</p>
+<div><pre><code class="language-text">Diff 2: 0.909
+Diff 3: 0.933
+Diff 4: 0.968</code></pre></div>
+<p>这说明 NSGR 即使没完全命中最优排列，生成列表也非常接近最优排列。</p>
+<h3>14. 位置变化分析：NSGR 并不是暴力打乱</h3>
+<p>论文分析了 NSGR 输出位置和初始 ranking 位置之间的关系。</p>
+<p>观察很有意思：</p>
+<ol><li>每个最终位置仍然倾向保留原本靠前的 item，说明 ranking 阶段的信号仍然重要。</li><li>距离越远，迁移概率越低，说明 NSGR 不是随机打乱。</li><li>前几个位置的分布更集中，说明头部位置更稳定，也更重要。</li></ol>
+<p>这符合工业重排直觉：重排不是推翻 ranking，而是在 ranking 给出的强排序基础上做 listwise 修正。</p>
+<h3>15. 消融实验：哪些模块最重要</h3>
+<p>Table 6：</p>
+<table><tbody><tr><th>Model</th><th>AUC</th><th>GAUC</th><th>HR@1%</th></tr><tr><td>w/o SID</td><td>0.8761</td><td>0.8692</td><td>0.834</td></tr><tr><td>w/o MSEU</td><td>0.8835</td><td>0.8742</td><td>0.846</td></tr><tr><td>w/o NSGU</td><td>0.8902</td><td>0.8829</td><td>0.796</td></tr><tr><td>w/o MSNL</td><td>0.8902</td><td>0.8829</td><td>0.772</td></tr><tr><td>NSGR</td><td>0.8902</td><td>0.8829</td><td>0.861</td></tr></tbody></table>
+<p>几个结论：</p>
+<ol><li>去掉 SID 后，AUC/GAUC 和 HR 都下降，说明语义 ID + HSTU 对 evaluator 和 generator 都有帮助。</li><li>去掉 MSE unit 后，AUC/GAUC 明显下降，说明 multi-scale context 对 evaluator 重要。</li><li>去掉 NSG unit 后，AUC/GAUC 不变，但 HR 大幅下降，因为 evaluator 没变，generator 变弱。</li><li>去掉 MSNL 后，AUC/GAUC 不变，但 HR 从 0.861 掉到 0.772，说明 MSNL 主要提升 generator 和 evaluator 的一致性。</li></ol>
+<p>这组消融把 evaluator 和 generator 的贡献分开了。</p>
+<div><pre><code class="language-text">MSEU 影响 evaluator 能不能评估好列表
+NSGU/MSNL 影响 generator 能不能生成好列表</code></pre></div>
+<h3>16. 参数<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E6%95%8F%E6%84%9F%E6%80%A7&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLmlY_mhJ_mgKciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.5vEsyeMPAsbEK6Zj0cok3irZK9hnMJC-CM9PMWUHYrM&amp;zhida_source=entity" target="_blank" rel="noreferrer">敏感性</a></span></h3>
+<p>论文分析了两个超参数：</p>
+<div><pre><code class="language-text">tau：MSNL 中的温度参数
+beta：neighbor list 构造强度/采样比例</code></pre></div>
+<p>结果显示：</p>
+<ol><li><code>tau=0.1</code> 时 HR 最好，过大或过小都会下降。</li><li><code>beta</code> 从 0.1 增加到 1 或 2 时，HR 快速提升，然后趋于稳定。</li><li>继续增大 beta 训练成本上升，但收益不明显。</li></ol>
+<p>这说明 neighbor list 的覆盖很重要，但不需要无限增加。适量 counterfactual neighbors 就能给 generator 足够信号。</p>
+<h3>17. 线上 A/B：为什么 NSGR(20) 才有效</h3>
+<p>线上实验部署在美团 CPS 业务，从 2025 年 8 月到 10 月做了 8 周 A/B。</p>
+<p>Baseline 是：</p>
+<div><pre><code class="language-text">YOLOR(8), A_8^8 permutation space</code></pre></div>
+<p>NSGR 做了两个版本：</p>
+<div><pre><code class="language-text">NSGR(8)：8 个候选的排列空间
+NSGR(20)：20 个候选的排列空间</code></pre></div>
+<p>结果：</p>
+<table><tbody><tr><th>Method</th><th>CTR</th><th>CVR</th><th>GMV</th><th>Cost(ms)</th></tr><tr><td>NSGR(8)</td><td>-0.42%</td><td>-0.18%</td><td>-1.02%</td><td>-2.1</td></tr><tr><td>NSGR(20)</td><td>+2.89%</td><td>+0.58%</td><td>+3.15%</td><td>-1.4</td></tr></tbody></table>
+<p>NSGR(8) 比 YOLOR(8) 略差，说明在 8 个候选的小排列空间里，YOLOR 这种 evaluator-based exhaustive/near-exhaustive 方法已经很强，NSGR 的生成优势不明显。</p>
+<p>但当候选数扩大到 20 时：</p>
+<div><pre><code class="language-text">20! 空间太大，YOLOR 无法穷举；
+NSGR 的树形 next-scale 生成优势开始显现。</code></pre></div>
+<h3>18. NSGR 的贡献</h3>
+<p>第一，它明确指出现有生成式重排的三类生成范式各有缺陷：AR 慢且缺少未来视角，one-step 粗，multi-step 易局部最优。</p>
+<p>第二，它提出 next-scale generation，把列表生成变成树形二分过程，从全局到局部逐层确定顺序。</p>
+<p>第三，它用 Multi-Scale Evaluator 和 Multi-Scale Neighbor Loss 解决 generator/evaluator 目标不一致的问题，让训练信号能在树的多个尺度上传递。</p>
+<p>第四，它在线上证明，当候选空间从 8 扩到 20 时，NSGR 的优势显著释放，GMV +3.15%，这说明它确实适合更大的工业重排空间。</p>
+<h3>19. 局限和问题</h3>
+<h3>19.1 树形二分是否是最优归纳偏置</h3>
+<p>NSGR 假设排序可以通过不断二分来构造。这很高效，但不一定适合所有列表结构。有些业务里位置之间不是天然二叉层级关系。</p>
+<h3>19.2 Candidate 数最好是 2 的幂？</h3>
+<p>论文方法天然适合长度为 4、8、16、20 这类可处理的候选集合，但<span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BA%8C%E5%8F%89%E6%A0%91&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLkuozlj4nmoJEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9._Rj4wuEHORLtS6YsnXSK1-S8E0No-_tKlvh8f2gE5mc&amp;zhida_source=entity" target="_blank" rel="noreferrer">二叉树</a></span>结构在任意长度上如何设计，论文没有展开太多。工业上 20 个候选如何具体补齐、截断或非均匀切分，是实现细节。</p>
+<h3>19.3 MSE 的准确性仍是地基</h3>
+<p>NSG 依赖 MSE 作为 reward model。如果 MSE 对 GMV、CVR、长期用户体验估计有偏，generator 会继承这种偏差。</p>
+<h3>19.4 线上目标复杂</h3>
+<p>论文线上报告 CTR、CVR、GMV，但重排还可能影响配送效率、商家公平、用户长期留存、广告自然流量平衡等目标。NSGR 本身没有完全解决多目标冲突。</p>
+<h3>19.5 与上游 ranking 的耦合</h3>
+<p>NSGR 能复用 ranking 表示是优点，但也意味着它依赖上游 ranking 模型的表示质量。如果 ranking 模型升级或候选分布变化，NSGR 可能需要同步适配。</p>
+<h3>20. 总结</h3>
+<p>NSGR 是一篇非常有工业味的生成式重排论文。它不讨论如何召回，也不讨论如何做单 item ranking，而是盯住最终列表生成这个最难的组合优化问题。</p>
+<p><span><a href="https://zhida.zhihu.com/search?content_id=276090247&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8A%80%E6%9C%AF%E8%B7%AF%E7%BA%BF&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQ0MzQsInEiOiLmioDmnK_ot6_nur8iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzYwOTAyNDcsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.r1OXOSAz8yUoYIOEaUvBbwbthospdmZaUeVD95ZWJGY&amp;zhida_source=entity" target="_blank" rel="noreferrer">技术路线</a></span>可以一句话概括：</p>
+<blockquote> 用树形 next-scale generator 从全局到局部逐层生成排序，用 multi-scale evaluator 评估列表价值，再用 multi-scale neighbor loss 把 evaluator 的相对价值信号传给 generator。</blockquote>
+<p>这篇论文最有价值的地方是，它把 reranking 的排列空间搜索问题讲得很具体。AR、one-step、multi-step 都有明显短板，NSGR 用 coarse-to-fine tree generation 给了一个很自然的第四种范式。</p></div><div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>

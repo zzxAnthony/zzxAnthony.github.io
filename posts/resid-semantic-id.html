@@ -23,184 +23,132 @@
         <div class="article-meta"><span>生成式推荐</span><span>克西</span><time datetime="2026-07-10">2026.07.10</time><span>21 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2059032884653118962" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><p>论文：Rethinking Generative Recommender Tokenizer: Recsys-Native Encoding and Semantic Quantization Beyond LLMs<br>作者：Yu Liang, Zhongjin Zhang, Yuxuan Zhu, Kerui Zhang, Zhiluohan Guo, Wenhang Zhou, Zonqi Yang, Kangle Wu, Yabo Ni, Anxiang Zeng, Cong Fu, Jianxin Wang, Jiazhi Xia<br>arXiv: <a href="https://arxiv.org/abs/2602.02338">https://arxiv.org/abs/2602.02338</a><br>代码：<a href="https://github.com/FuCongResearchSquad/ReSID">https://github.com/FuCongResearchSquad/ReSID</a></p>
-<h2>1. 这篇论文想解决什么问题</h2>
-<p>生成式推荐近几年有一条很重要的路线：不再把推荐看成“从海量 item ID 中打分检索”，而是把每个物品编码成一串离散 token，也就是 Semantic ID，简称 SID。模型预测下一个物品时，不直接输出 item ID，而是像语言模型一样逐 token 生成一个 SID。</p>
+      <div class="article-body"><h3>1. 语义ID现状</h3>
+<p><span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E7%94%9F%E6%88%90%E5%BC%8F%E6%8E%A8%E8%8D%90&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLnlJ_miJDlvI_mjqjojZAiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.ojm1IhVpw1z9bjfwuZ8Y48t2ddFhrcPRfYXygpbKk2g&amp;zhida_source=entity" target="_blank" rel="noreferrer">生成式推荐</a></span>近几年有一条很重要的路线：不再把推荐看成“从海量 item ID 中打分检索”，而是把每个物品编码成一串离散 token，也就是 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=Semantic+ID&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJTZW1hbnRpYyBJRCIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3ODc2Nzg2MCwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.chi9lM70GRjzHGgc6zD4hQw5LVjYIoB6rsaHh2DkSWQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">Semantic ID</a></span>，简称 SID。模型预测下一个物品时，不直接输出 item ID，而是像语言模型一样逐 token 生成一个 SID。</p>
 <p>例如一个物品可以被编码为：</p>
-<pre><code class="language-text">[21, 3, 54]
-</code></pre>
-<p>这样做有两个直观好处：</p>
-<ol>
-<li>item 空间被压缩成多级 token 空间，可以减少超大 item 表的压力。</li>
-<li>推荐问题被改写成序列生成问题，可以使用自回归解码、beam search 等生成式建模工具。</li>
-</ol>
-<p>但 ReSID 指出，已有 SID 方案有一个根本问题：<strong>大多数方法把 SID tokenizer 当成语义压缩器，而不是推荐系统原生的预测接口</strong>。</p>
+<div><pre><code class="language-text">[21, 3, 54]</code></pre></div>
+<p>这样做有两个好处：</p>
+<ol><li>item 空间被压缩成多级 token 空间，可以减少超大 item 表的压力。</li><li>推荐问题转变成序列生成问题，可以使用自回归解码、<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=beam+search&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJiZWFtIHNlYXJjaCIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3ODc2Nzg2MCwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.L3PBvlloalqnQV01ryh4B-iO7ahAtBwKOkZDk2rzOiI&amp;zhida_source=entity" target="_blank" rel="noreferrer">beam search</a></span> 等生成式建模方法。</li></ol>
+<p>但 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=ReSID&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJSZVNJRCIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3ODc2Nzg2MCwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.T9BnAlDulmIQEd5c6QrcZWqAROaUtfDbocuQZCndUw8&amp;zhida_source=entity" target="_blank" rel="noreferrer">ReSID</a></span> 指出了已有 SID 方案的一个根本问题：<b>大多数方法把 SID tokenizer 当成语义压缩器，而不是推荐系统原生的预测接口</b>。</p>
 <p>典型流程是：</p>
-<pre><code class="language-text">物品文本/图片
--&gt; LLM 或多模态模型提取语义 embedding
--&gt; RQ-VAE / RQ-KMeans / Hierarchical KMeans 离散化
--&gt; 生成式推荐模型预测 SID
-</code></pre>
-<p>这个流程看起来合理，但它隐含了一个假设：语义相似的物品在推荐中也应该相近。ReSID 认为这个假设经常不成立。</p>
-<p>比如“零食”和“气球”在文本语义上不相似，但它们可能在派对场景中经常被同一批用户共同购买。如果 tokenizer 只根据语义 embedding 编码，它就可能把这两个物品分得很远，从而丢掉推荐里真正重要的协同信号。</p>
+<div><pre><code class="language-text">物品文本/图片
+-&gt; <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=LLM&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJMTE0iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.Cz_H3FfXv6_Qf1apWOE3hT-Ao4XTFbN2oWxUHj3PsG0&amp;zhida_source=entity" target="_blank" rel="noreferrer">LLM</a></span> 或多模态模型提取语义 embedding
+-&gt; <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=RQ-VAE&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJSUS1WQUUiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.4sj8a2_cXlb_i8mLxET4ZJvcM1HLOk-zdQlRhKUM3rk&amp;zhida_source=entity" target="_blank" rel="noreferrer">RQ-VAE</a></span> / RQ-KMeans / <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=Hierarchical+KMeans&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJIaWVyYXJjaGljYWwgS01lYW5zIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc4NzY3ODYwLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.NeLz81d7m_n4SFt-9en6jRB9ufehs_iCuIZzsQpCGsk&amp;zhida_source=entity" target="_blank" rel="noreferrer">Hierarchical KMeans</a></span> 离散化
+-&gt; 生成式推荐模型预测 SID</code></pre></div>
+<p>这个流程看起来合理，但它隐含了一个假设：语义相似的物品在推荐中也应该相近。但很多时候这个假设并不成立。</p>
+<p>比如“零食”和“气球”在文本语义上不相似，但它们可能在派对场景中经常被同一批用户共同购买。如果 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=2&amp;q=tokenizer&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJ0b2tlbml6ZXIiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.hAyh-N1-sNuCRETFp438iQAC__JaMLGxODkwOiSn3u0&amp;zhida_source=entity" target="_blank" rel="noreferrer">tokenizer</a></span> 只根据语义 embedding 编码，它就可能把这两个物品分得很远，从而丢掉推荐里真正重要的协同信号。</p>
 <p>所以 ReSID 的核心问题是：</p>
-<blockquote>
-<p>生成式推荐的 SID 应该怎样编码，才能既保留推荐任务需要的信息，又让自回归模型更容易预测？</p>
-</blockquote>
-<h2>2. ReSID 的核心观点</h2>
+<blockquote> 生成式推荐的 SID 应该怎样编码，才能既保留推荐任务需要的信息，又让<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E8%87%AA%E5%9B%9E%E5%BD%92%E6%A8%A1%E5%9E%8B&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLoh6rlm57lvZLmqKHlnosiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.V6l_wdYZVIqskfzQdECEswRm4eemZkjjxNIOstSHBqo&amp;zhida_source=entity" target="_blank" rel="noreferrer">自回归模型</a></span>更容易预测？</blockquote>
+<h3>2. ReSID 的核心观点</h3>
 <p>ReSID 的观点可以概括成一句话：</p>
-<blockquote>
-<p>SID tokenizer 不应该围绕 LLM 语义空间设计，而应该围绕推荐任务的信息保留和序列可预测性设计。</p>
-</blockquote>
+<blockquote> SID tokenizer 不应该围绕 LLM <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%AD%E4%B9%89%E7%A9%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLor63kuYnnqbrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.d7CKdxWlUDePiryYa9BFAfa_SIebZuKrblEF9EIibZc&amp;zhida_source=entity" target="_blank" rel="noreferrer">语义空间</a></span>设计，而应该围绕推荐任务的信息保留和序列可预测性设计。</blockquote>
 <p>论文把问题拆成两个阶段：</p>
-<ol>
-<li><p><strong>E-stage：表示学习</strong><br>学到一个适合推荐任务的连续 item 表示。</p>
-</li>
-<li><p><strong>Q-stage：量化编码</strong><br>把连续表示离散化成适合自回归生成的 SID。</p>
-</li>
-</ol>
+<ol><li><b>E-stage：表示学习</b> 学到一个适合推荐任务的连续 item 表示。</li><li><b>Q-stage：<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E9%87%8F%E5%8C%96%E7%BC%96%E7%A0%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLph4_ljJbnvJbnoIEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.fKZGFta7ljJQ99tlKrd2aYOr8aQUrbAUiSXqKCU7osU&amp;zhida_source=entity" target="_blank" rel="noreferrer">量化编码</a></span></b> 把连续表示离散化成适合自回归生成的 SID。</li></ol>
 <p>对应地，ReSID 提出两个组件：</p>
-<pre><code class="language-text">FAMAE: Field-Aware Masked Auto-Encoding
-GAOQ: Globally Aligned Orthogonal Quantization
-</code></pre>
+<div><pre><code class="language-text">FAMAE: Field-Aware Masked Auto-Encoding
+<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=GAOQ&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJHQU9RIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc4NzY3ODYwLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.uOgnzNUrO_Mx6xYnf9neaM5MIbPXJRUh2fgvjCMukdY&amp;zhida_source=entity" target="_blank" rel="noreferrer">GAOQ</a></span>: Globally Aligned Orthogonal Quantization</code></pre></div>
 <p>整体流程是：</p>
-<pre><code class="language-text">结构化物品特征 + 用户历史
+<div><pre><code class="language-text">结构化物品特征 + 用户历史
 -&gt; FAMAE 学习推荐原生 item 表示
 -&gt; GAOQ 量化成低歧义、可预测的 SID
--&gt; T5-style 生成模型预测下一个 SID
-</code></pre>
-<h2>3. 为什么传统 SID tokenizer 不够好</h2>
-<p>论文主要批评两类问题。</p>
+-&gt; T5-style 生成模型预测下一个 SID</code></pre></div>
+<h3>3. 为什么传统 SID tokenizer 不够好</h3>
+<p>论文主要指出了两类问题。</p>
 <h3>3.1 LLM 语义 embedding 和推荐目标不完全对齐</h3>
-<p>LLM 或多模态模型通常优化的是文本、图像等内容语义。它们擅长判断“两个物品描述是否相似”，但推荐系统更关心：</p>
-<ul>
-<li>哪些物品经常被同一用户连续交互；</li>
-<li>哪些物品处在同一个消费场景；</li>
-<li>哪些跨品类转移在行为序列中高频出现；</li>
-<li>哪些结构化属性对下一个行为有预测力。</li>
-</ul>
+<p>LLM 或多模态模型通常优化的是文本、图像等内容语义。它们擅长判断“两个物品描述是否相似”，但<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=2&amp;q=%E6%8E%A8%E8%8D%90%E7%B3%BB%E7%BB%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLmjqjojZDns7vnu58iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MiwiemRfdG9rZW4iOm51bGx9.gePShbpbJ6T8XEjgvr5hYOnQGu1p9qQRdSWK-dODt2g&amp;zhida_source=entity" target="_blank" rel="noreferrer">推荐系统</a></span>更关心：</p>
+<ul><li>哪些物品经常被同一用户连续交互；</li><li>哪些物品处在同一个消费场景；</li><li>哪些跨品类转移在<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E8%A1%8C%E4%B8%BA%E5%BA%8F%E5%88%97&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLooYzkuLrluo_liJciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.sYICg9gXpVIg2Js3wB5jiMNIp_o8miKHEsh01bac1uY&amp;zhida_source=entity" target="_blank" rel="noreferrer">行为序列</a></span>中高频出现；</li><li>哪些结构化属性对下一个行为有预测力。</li></ul>
 <p>因此，纯语义 embedding 容易出现两种错位：</p>
-<pre><code class="language-text">语义相似，但推荐关系弱
-语义不相似，但协同关系强
-</code></pre>
-<p>已有方法尝试往语义 encoder 中注入协同信号，但 ReSID 认为这会带来几何约束冲突：语义目标希望语义相近的物品靠近，协同目标希望共现或可转移的物品靠近，两者不总是一致。</p>
+<div><pre><code class="language-text">语义相似，但推荐关系弱
+语义不相似，但协同关系强</code></pre></div>
+<p>已有方法尝试往语义 encoder 中注入协同信号，但 ReSID 认为这会带来<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E5%87%A0%E4%BD%95%E7%BA%A6%E6%9D%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLlh6DkvZXnuqbmnZ8iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.PjCXGVId00loXeT37zfO8mqgj_wtrbeFME5-KOL-WMA&amp;zhida_source=entity" target="_blank" rel="noreferrer">几何约束</a></span>冲突：语义目标希望语义相近的物品靠近，协同目标希望共现或可转移的物品靠近，两者不总是一致。</p>
 <h3>3.2 传统量化没有为自回归解码优化</h3>
 <p>SID 最终是被自回归模型逐 token 预测的，所以编码本身应该“好预测”。</p>
 <p>但常见量化方法不一定满足这个要求。</p>
 <p>RQ-VAE / RQ-KMeans 主要优化重构误差：</p>
-<pre><code class="language-text">连续 embedding 能不能被离散 code 还原
-</code></pre>
+<div><pre><code class="language-text">连续 embedding 能不能被离散 code 还原</code></pre></div>
 <p>它们不关心：</p>
-<pre><code class="language-text">给定前缀 code 后，下一个 code 是否容易预测
-</code></pre>
+<div><pre><code class="language-text">给定前缀 code 后，下一个 code 是否容易预测</code></pre></div>
 <p>Hierarchical KMeans 虽然有层级结构，但它通常在每个父节点下局部分配 child index。于是不同父节点下的同一个 child index 可能代表完全不同的方向。</p>
 <p>比如：</p>
-<pre><code class="language-text">(2, 1, 5) 里的第二级 token 1
-(9, 1, 7) 里的第二级 token 1
-</code></pre>
+<div><pre><code class="language-text">(2, 1, 5) 里的第二级 token 1
+(9, 1, 7) 里的第二级 token 1</code></pre></div>
 <p>这两个 <code>1</code> 可能没有一致含义。对自回归模型来说，这会增加 token 的多模态歧义。</p>
-<h2>4. FAMAE：推荐原生的 item 表示学习</h2>
-<p>FAMAE 的全称是 Field-Aware Masked Auto-Encoding，核心思想是：<strong>不要先把结构化推荐特征转成自然语言再喂给 LLM，而是直接在推荐系统的结构化字段上做 masked prediction</strong>。</p>
+<figure><div><img src="../assets/posts/resid-semantic-id/01.jpg" alt="ReSID：从推荐系统视角重新设计语义ID 配图 1" loading="lazy" decoding="async"></div></figure>
+<h3>4. FAMAE：推荐原生的 item 表示学习</h3>
+<p>FAMAE 的全称是 Field-Aware Masked Auto-Encoding，核心思想是：<b>不要先把结构化推荐特征转成自然语言再喂给 LLM，而是直接在推荐系统的结构化字段上做 masked prediction</b>。</p>
 <p>每个物品有多个结构化字段：</p>
-<pre><code class="language-text">item_id
+<div><pre><code class="language-text">item_id
 category
 brand
 price bucket
 属性字段
-其他 metadata 字段
-</code></pre>
-<p>FAMAE 把用户历史和目标物品放进 Transformer。对目标物品的一部分字段做 mask，让模型根据：</p>
-<pre><code class="language-text">用户历史 + 目标物品未被 mask 的字段
-</code></pre>
+其他 metadata 字段</code></pre></div>
+<p>FAMAE 把用户历史和目标物品放进 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=Transformer&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJUcmFuc2Zvcm1lciIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3ODc2Nzg2MCwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.snzgvX799FdTuzTVaw04llRMgsNMLK7aUhaFc3fPFkk&amp;zhida_source=entity" target="_blank" rel="noreferrer">Transformer</a></span>。对目标物品的一部分字段做 mask，让模型根据：</p>
+<div><pre><code class="language-text">用户历史 + 目标物品未被 mask 的字段</code></pre></div>
 <p>去预测被 mask 的字段。</p>
 <p>训练目标可以写成：</p>
-<pre><code class="language-text">L_FAMAE = E[ sum_{k in M} alpha_k * (-log q_k(f_T^k | h_T)) ]
-</code></pre>
+<p><span class="math-inline">\(L_{FAMAE} = E[ sum_{k \ in \ M} alpha_k * (-log q_k(f_T^k | h_T)) ]\)</span> </p>
 <p>其中：</p>
-<ul>
-<li><code>M</code> 是被 mask 的字段集合；</li>
-<li><code>f_T^k</code> 是目标物品的第 k 个字段；</li>
-<li><code>h_T</code> 是 Transformer 在目标位置的上下文化表示；</li>
-<li><code>q_k</code> 是字段 k 上的预测分布；</li>
-<li><code>alpha_k</code> 控制不同字段的重要性。</li>
-</ul>
+<ul><li><code>M</code> 是被 mask 的字段集合；</li><li><code>f_T^k</code> 是目标物品的第 k 个字段；</li><li><code>h_T</code> 是 Transformer 在目标位置的上下文化表示；</li><li><code>q_k</code> 是字段 k 上的预测分布；</li><li><code>alpha_k</code> 控制不同字段的重要性。</li></ul>
 <p>直观解释：<br>如果一个表示能根据用户历史预测目标物品的结构化字段，它就更可能保留推荐任务需要的信息。</p>
-<h3>4.1 为什么不用 h_T 直接做 SID</h3>
-<p>论文有一个很重要的细节：FAMAE 训练时会产生上下文化表示 <code>h_T</code>，但最终用于 SID 量化的不是 <code>h_T</code>，而是目标物品各字段 embedding 的拼接。</p>
-<p>原因是 <code>h_T</code> 混入了具体用户历史，它更像“这个用户场景下的目标表示”。SID 应该是物品本身的稳定编码，不能随用户上下文改变。</p>
+<h3>4.1 为什么不用 <span class="math-inline">\(h_T\)</span> 直接做 SID</h3>
+<p>论文有一个很重要的细节：FAMAE 训练时会产生上下文化表示 <span class="math-inline">\(h_T\)</span> ，但最终用于 SID 量化的不是 <span class="math-inline">\(h_T\)</span> ，而是目标物品各字段 embedding 的拼接。</p>
+<p>原因是 <span class="math-inline">\(h_T\)</span> 混入了具体用户历史，它更像这个用户场景下的目标表示。SID 应该是物品本身的稳定编码，不能随用户上下文改变。</p>
 <p>所以 ReSID 最终使用：</p>
-<pre><code class="language-text">concat(e_1, e_2, ..., e_J)
-</code></pre>
-<p>作为物品表示，其中 <code>e_j</code> 是第 j 个结构化字段的 embedding。</p>
-<h3>4.2 FAMAE 的两个诊断指标</h3>
+<p><span class="math-inline">\(concat(e_1, e_2, ..., e_J)\)</span> </p>
+<p>作为物品表示，其中 <span class="math-inline">\(e_j\)</span> 是第 j 个结构化字段的 embedding。</p>
+<h3>4.2 FAMAE 的两个<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%8A%E6%96%AD%E6%8C%87%E6%A0%87&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLor4rmlq3mjIfmoIciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.I6GA4hY2GN98FIzyBFk9nT5xK2NCbQ7-l-8rtJEY_1w&amp;zhida_source=entity" target="_blank" rel="noreferrer">诊断指标</a></span></h3>
 <p>ReSID 还提出了两个用于评价 E-stage embedding 质量的指标。</p>
-<p>第一个是协同建模能力：<br>把目标物品所有字段都 mask 掉，只根据用户历史预测目标 item，看 Recall 表现。</p>
-<p>第二个是语义/结构区分能力：<br>只 mask item_id 字段，看其他字段能否帮助识别具体 item。</p>
+<p>第一个是<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E5%8D%8F%E5%90%8C%E5%BB%BA%E6%A8%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLljY_lkIzlu7rmqKEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.9Nvqv_gFUJy93b_Uu0tlcmUJPwtc1mMAMV2qtOvykGo&amp;zhida_source=entity" target="_blank" rel="noreferrer">协同建模</a></span>能力：<br>把目标物品所有字段都 mask 掉，只根据用户历史预测目标 item，看 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=Recall&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJSZWNhbGwiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.WCy5iRm9ajRWsfjk5C8BgOOBUcfstmzfS9GLc1-94mM&amp;zhida_source=entity" target="_blank" rel="noreferrer">Recall</a></span> 表现。</p>
+<p>第二个是语义/结构区分能力：<br>只 mask item_id 字段，看其他字段能否识别 item。</p>
 <p>这两个指标分别对应：</p>
-<pre><code class="language-text">是否保留协同预测信息
-是否保留细粒度语义结构
-</code></pre>
+<div><pre><code class="language-text">是否保留协同预测信息
+是否保留细粒度<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%AD%E4%B9%89%E7%BB%93%E6%9E%84&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLor63kuYnnu5PmnoQiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.B0-NTYehdOhBqRVvGlmB4yFRyK4kAhKR2cKbsEKRfkQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">语义结构</a></span></code></pre></div>
 <p>论文实验显示，这两个指标越好，下游 SID 生成推荐效果通常也越好。</p>
-<h3>4.3 更具体地看：FAMAE 到底在学什么</h3>
-<p>可以把 FAMAE 理解成一个“目标物品字段恢复器”。训练样本不是普通的：</p>
-<pre><code class="language-text">用户历史 -&gt; 下一个 item_id
-</code></pre>
+<h3>4.3 FAMAE 到底在学什么</h3>
+<p>可以把 FAMAE 理解成一个目标物品字段恢复器。训练样本不是普通的：</p>
+<div><pre><code class="language-text">用户历史 -&gt; 下一个 item_id</code></pre></div>
 <p>而是更细的字段级任务：</p>
-<pre><code class="language-text">历史 item 的完整字段序列 + 目标 item 的部分可见字段
--&gt; 目标 item 被 mask 的字段
-</code></pre>
+<div><pre><code class="language-text">历史 item 的完整字段序列 + 目标 item 的部分可见字段
+-&gt; 目标 item 被 mask 的字段</code></pre></div>
 <p>假设目标商品有这些字段：</p>
-<pre><code class="language-text">item_id = i_123
+<div><pre><code class="language-text">item_id = i_123
 cate1 = 家居
 cate2 = 床上用品
 brand = 某品牌
-price_bucket = 中低价
-</code></pre>
+price_bucket = 中低价</code></pre></div>
 <p>一次 FAMAE 训练可以 mask 掉 <code>cate2</code> 和 <code>price_bucket</code>，让模型根据用户历史和其他字段恢复：</p>
-<pre><code class="language-text">cate2 = 床上用品
-price_bucket = 中低价
-</code></pre>
-<p>也可以把所有目标字段都 mask 掉，迫使模型主要依赖用户历史去预测目标物品信息。这样它学到的不是“标题像不像”，而是：</p>
-<pre><code class="language-text">什么样的历史行为会指向什么样的目标字段组合
-</code></pre>
-<p>这就是它比纯 LLM embedding 更推荐原生的原因。</p>
+<div><pre><code class="language-text">cate2 = 床上用品
+price_bucket = 中低价</code></pre></div>
+<p>也可以把所有目标字段都 mask 掉，迫使模型主要依赖用户历史去预测目标物品信息。这样它学到的不是标题像不像，而是：</p>
+<div><pre><code class="language-text">什么样的历史行为会指向什么样的目标字段组合</code></pre></div>
+<p>这就是它比纯 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=LLM+embedding&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJMTE0gZW1iZWRkaW5nIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc4NzY3ODYwLCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.xc5DqI1iA8XoGFfthYyb09j9DKBSCfPnu6LhGGi2-W4&amp;zhida_source=entity" target="_blank" rel="noreferrer">LLM embedding</a></span> 更推荐原生的原因。</p>
 <h3>4.4 FAMAE 的关键实现选择</h3>
-<p>如果自己实现或改造 FAMAE，需要特别关注几个点。</p>
 <p>第一，字段设计比模型结构更重要。FAMAE 假设结构化字段足够承载推荐所需信息，因此字段必须有预测价值。常见有用字段包括：</p>
-<pre><code class="language-text">item_id
+<div><pre><code class="language-text">item_id
 category 多级类目
 brand / author / shop / creator
 price bucket
 tag
 行为统计特征离散桶
-内容主题簇
-</code></pre>
-<p>如果字段只是噪声，FAMAE 会学到错误的充分统计量。</p>
+内容主题簇</code></pre></div>
+<p>如果字段只是噪声，FAMAE 会学到错误的<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E5%85%85%E5%88%86%E7%BB%9F%E8%AE%A1%E9%87%8F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLlhYXliIbnu5_orqHph48iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.0bbdppk-rHMGOh6BUFOSaUchAIcLGz6vRVwHSPv0JCk&amp;zhida_source=entity" target="_blank" rel="noreferrer">充分统计量</a></span>。</p>
 <p>第二，mask 策略会影响表示偏向。如果经常 mask <code>item_id</code>，模型会更关注区分具体物品；如果经常 mask 类目、品牌、tag，模型会更关注语义和属性结构；如果把目标字段全 mask，模型更依赖用户历史，协同信号更强。</p>
 <p>第三，字段权重 <code>alpha_k</code> 不是装饰项。item_id、类目、品牌、价格、tag 的重要性不一样。若 item_id 权重过高，模型可能退化成“记 ID”；若类目/tag 权重过高，模型可能只学粗粒度语义，丢掉细粒度推荐能力。</p>
-<p>第四，FAMAE 不是端到端推荐模型。它的产物是 item embedding，不是最终排序分数。真正用于量化的是字段 embedding 的拼接，而不是用户上下文化的 <code>h_T</code>。这一点能避免 SID 随用户历史变化，但也意味着 FAMAE 学到的是“全局物品编码”，不是个性化编码。</p>
-<h2>5. GAOQ：让 SID 更适合自回归预测</h2>
-<p>FAMAE 解决连续表示的问题，GAOQ 解决离散编码的问题。</p>
-<p>GAOQ 的目标不是单纯压缩 embedding，而是同时优化三件事：</p>
-<ol>
-<li>完整 SID 能重构 item 表示，减少信息损失。</li>
-<li>单个 code token 自身语义稳定，减少歧义。</li>
-<li>给定 SID 前缀后，下一级 token 更容易预测。</li>
-</ol>
-<p>论文用信息论形式表达为：</p>
-<pre><code class="language-text">min H(z | C) + mu * sum_l H(z | c_l) + lambda * sum_l H(c_l | C_&lt;l)
-</code></pre>
+<p>第四，FAMAE 不是端到端推荐模型。它的产物是 item embedding，不是最终排序分数。真正用于量化的是字段 embedding 的拼接，而不是用户上下文化的 <span class="math-inline">\(h_T\)</span> 。这一点能避免 SID 随用户历史变化，但也意味着 FAMAE 学到的是“全局物品编码”，不是个性化编码。</p>
+<h3>5. GAOQ：让 SID 更适合自回归预测</h3>
+<p>FAMAE 解决连续表示的问题，GAOQ 解决<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E7%A6%BB%E6%95%A3%E7%BC%96%E7%A0%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLnprvmlaPnvJbnoIEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.9W0TG_GLFwhAZoOG-m5u3cymrX40v_eemePjYOTKsX0&amp;zhida_source=entity" target="_blank" rel="noreferrer">离散编码</a></span>的问题。</p>
+<p>GAOQ 的目标是同时优化三件事：</p>
+<ol><li>完整 SID 能重构 item 表示，减少信息损失。</li><li>单个 code token 自身语义稳定，减少歧义。</li><li>给定 SID 前缀后，下一级 token 更容易预测。</li></ol>
+<p>论文用<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BF%A1%E6%81%AF%E8%AE%BA&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLkv6Hmga_orroiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.MqO5zE8QPWkBKzQRV6cT4ks8q8avreBOgInLt5FPmhg&amp;zhida_source=entity" target="_blank" rel="noreferrer">信息论</a></span>形式表达为：</p>
+<p><span class="math-inline">\(min H(z | C) + mu * sum_l H(z | c_l) + lambda * sum_l H(c_l | C_&lt;l)\)</span> </p>
 <p>可以把三项理解为：</p>
-<ul>
-<li><code>H(z | C)</code>：完整 SID 对 item 表示的重构不确定性；</li>
-<li><code>H(z | c_l)</code>：单个层级 code 的语义歧义；</li>
-<li><code>H(c_l | C_&lt;l)</code>：自回归预测下一级 code 的不确定性。</li>
-</ul>
+<ul><li><code>H(z | C)</code>：完整 SID 对 item 表示的重构不确定性；</li><li><code>H(z | c_l)</code>：单个层级 code 的语义歧义；</li><li><code>H(c_l | C_&lt;l)</code>：自回归预测下一级 code 的不确定性。</li></ul>
 <p>另外还要保持每一层 code 使用均衡，避免某些 code 塌缩。</p>
 <h3>5.1 GAOQ 的算法流程</h3>
-<p>GAOQ 基于层级聚类，但解决了传统 Hierarchical KMeans 的局部索引混乱问题。</p>
+<p>GAOQ 基于<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E5%B1%82%E7%BA%A7%E8%81%9A%E7%B1%BB&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLlsYLnuqfogZrnsbsiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.Iy3K7Rzfeg-f8CyczOL2wKAwL-sYsCoEJsmzIV_SZa4&amp;zhida_source=entity" target="_blank" rel="noreferrer">层级聚类</a></span>，但解决了传统 Hierarchical KMeans 的局部索引混乱问题。</p>
 <p>对某一层、某个父节点下的 item 集合，GAOQ 做：</p>
-<pre><code class="language-text">1. Balanced KMeans
+<div><pre><code class="language-text">1. Balanced KMeans
    把父节点下的 item 表示分成 b_l 个平衡子簇。
 
 2. Residualization / Centering
@@ -210,31 +158,26 @@ tag
    构造一组近似正交的全局 anchor 方向。
 
 4. Hungarian Matching
-   根据余弦相似度，把子簇中心匹配到全局 anchor。
+   根据<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BD%99%E5%BC%A6%E7%9B%B8%E4%BC%BC%E5%BA%A6&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLkvZnlvKbnm7jkvLzluqYiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.3sdL-b2LjeTQKO95XNT1vbpilo0sqEK1OQAf56qqdgE&amp;zhida_source=entity" target="_blank" rel="noreferrer">余弦相似度</a></span>，把子簇中心匹配到全局 anchor。
 
 5. Code Assignment
-   子簇内所有 item 使用匹配到的 anchor index 作为该层 code。
-</code></pre>
+   子簇内所有 item 使用匹配到的 anchor index 作为该层 code。</code></pre></div>
 <p>最关键的是第 3 和第 4 步。<br>它们让不同父节点下的同一个 child index 尽量代表一致的方向。</p>
 <p>也就是说，GAOQ 希望：</p>
-<pre><code class="language-text">第二层 token 3
-</code></pre>
+<div><pre><code class="language-text">第二层 token 3</code></pre></div>
 <p>在不同一级前缀下仍然有相对稳定的含义，而不是每个父节点内部随便编号。</p>
 <p>这会降低自回归模型的学习难度，因为 code token 的含义更 prefix-invariant。</p>
 <h3>5.2 GAOQ 和 Hierarchical KMeans 的关键差别</h3>
-<p>普通 Hierarchical KMeans 的问题不是“分层”本身，而是每个父节点下面的子编号是局部随意的。</p>
+<p>普通 Hierarchical KMeans 的问题不是分层本身，而是每个父节点下面的子编号是局部随意的。</p>
 <p>假设一级聚类有两个父节点：</p>
-<pre><code class="language-text">父节点 A：手机、耳机、充电器
-父节点 B：零食、气球、纸杯
-</code></pre>
+<div><pre><code class="language-text">父节点 A：手机、耳机、充电器
+父节点 B：零食、气球、纸杯</code></pre></div>
 <p>在父节点 A 下，二级编号 <code>1</code> 可能表示“配件方向”；在父节点 B 下，二级编号 <code>1</code> 可能表示“派对装饰方向”。这对树结构本身没问题，但对生成模型有问题，因为生成模型看到的 token id 是共享的。它会困惑：</p>
-<pre><code class="language-text">c_2 = 1 到底代表什么？
-</code></pre>
+<div><pre><code class="language-text">c_2 = 1 到底代表什么？</code></pre></div>
 <p>GAOQ 做的事情是：每个父节点内部聚类后，不直接给子簇编号，而是先把子簇中心减去父簇中心，得到“相对于父节点的方向”，再把这些方向匹配到全局 anchor。</p>
 <p>所以它不是要求不同父节点下的物品绝对位置相同，而是要求：</p>
-<pre><code class="language-text">同一个二级编号在不同父节点下，尽量代表相似的相对方向
-</code></pre>
-<p>这比“全局统一聚类”更灵活，也比“每个父节点局部乱编号”更适合自回归解码。</p>
+<div><pre><code class="language-text">同一个二级编号在不同父节点下，尽量代表相似的相对方向</code></pre></div>
+<p>这比全局统一聚类更灵活，也更适合自回归解码。</p>
 <h3>5.3 为什么要 Balanced KMeans</h3>
 <p>SID 每一层如果 code 分布极不均衡，会出现两个问题。</p>
 <p>第一，热门 code 太多，模型预测时容易塌缩到少数 token，候选多样性下降。</p>
@@ -242,120 +185,46 @@ tag
 <p>Balanced KMeans 的作用是让每个分支尽量承载接近数量的 item。它不是为了提升语义纯度，而是为了让 SID token 作为训练标签更稳定、更均衡。</p>
 <p>不过这里也有代价：强行平衡可能切开天然大簇，使某些语义/协同结构被拆散。因此 branching factor 和 balance 约束强度会明显影响效果。</p>
 <h3>5.4 分支因子怎么理解</h3>
-<p>论文使用三层 SID，不同数据集的 branching factor 不同。例如 Musical Instruments 使用 <code>(32, 40, 19)</code>，Books 使用 <code>(256, 256, 8)</code>。</p>
+<p>论文使用三层 SID，不同<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E6%95%B0%E6%8D%AE%E9%9B%86&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLmlbDmja7pm4YiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.KLDD81TtB6hjUGNF5cxMiopkhXSNJ0mUBMvugkX-JpI&amp;zhida_source=entity" target="_blank" rel="noreferrer">数据集</a></span>的 branching factor 不同。例如 Musical Instruments 使用 <code>(32, 40, 19)</code>，Books 使用 <code>(256, 256, 8)</code>。</p>
 <p>可以粗略理解为：</p>
-<pre><code class="language-text">前两层负责粗到中粒度分组
-最后一层负责在前缀下区分具体 item
-</code></pre>
+<div><pre><code class="language-text">前两层负责粗到中粒度分组
+最后一层负责在前缀下区分具体 item</code></pre></div>
 <p>分支太小，SID 容量不够，多个 item 被挤在相近 code 里，重构损失大。分支太大，下一层 token 选择空间变大，自回归预测更难。</p>
 <p>论文在 Musical Instruments 上发现，<code>b1 * b2</code> 大约比 item vocabulary 小 10 到 20 倍时效果较好。这不是普适定律，但给了一个实用启发：SID 不是越细越好，它要在“容量”和“可预测性”之间找平衡。</p>
-<h2>6. 和传统方法的本质区别</h2>
+<h3>6. 和传统方<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E6%B3%95%E7%9A%84%E6%9C%AC%E8%B4%A8&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLms5XnmoTmnKzotKgiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.cCJnd-5OTYT8ElIrka15W2NpMAjrSNfeMvU_62r0zKU&amp;zhida_source=entity" target="_blank" rel="noreferrer">法的本质</a></span>区别</h3>
 <p>可以用一张对比表理解 ReSID。</p>
-<table>
-<thead>
-<tr>
-<th>方法</th>
-<th>表示来源</th>
-<th>量化目标</th>
-<th>主要问题</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>TIGER</td>
-<td>文本语义 embedding</td>
-<td>RQ-VAE 重构</td>
-<td>协同信号弱</td>
-</tr>
-<tr>
-<td>LETTER / EAGER / UNGER</td>
-<td>语义 + 协同混合</td>
-<td>多目标 tokenization</td>
-<td>语义与协同目标可能冲突</td>
-</tr>
-<tr>
-<td>ETEGRec</td>
-<td>端到端学习 SID</td>
-<td>推荐目标反传</td>
-<td>SID 和生成模型相互干扰，目标非平稳</td>
-</tr>
-<tr>
-<td>ReSID</td>
-<td>结构化字段 + 用户历史</td>
-<td>信息保留 + 序列可预测</td>
-<td>更推荐原生，但依赖结构化字段质量</td>
-</tr>
-</tbody></table>
-<p>ReSID 不是说语义不重要，而是说语义应该作为推荐任务所需的结构化信息被保留，而不是由 LLM 语义空间主导。</p>
-<h2>7. 实验设计</h2>
-<p>论文在 Amazon-2023 的 10 个子集上评估，包括：</p>
-<ul>
-<li>Musical Instruments</li>
-<li>Video Games</li>
-<li>Industrial &amp; Scientific</li>
-<li>Baby Products</li>
-<li>Arts, Crafts &amp; Sewing</li>
-<li>Sports &amp; Outdoors</li>
-<li>Toys &amp; Games</li>
-<li>Health &amp; Household</li>
-<li>Beauty &amp; Personal Care</li>
-<li>Books</li>
-</ul>
+<table><tbody><tr><th>方法</th><th>表示来源</th><th>量化目标</th><th>主要问题</th></tr><tr><td>TIGER</td><td>文本语义 embedding</td><td>RQ-VAE 重构</td><td>协同信号弱</td></tr><tr><td>LETTER / EAGER / UNGER</td><td>语义 + 协同混合</td><td>多目标 tokenization</td><td>语义与协同目标可能冲突</td></tr><tr><td>ETEGRec</td><td>端到端学习 SID</td><td>推荐目标反传</td><td>SID 和生成模型相互干扰，目标非平稳</td></tr><tr><td>ReSID</td><td>结构化字段 + 用户历史</td><td>信息保留 + 序列可预测</td><td>更推荐原生，但依赖结构化字段质量</td></tr></tbody></table>
+<h3>7. 实验设计</h3>
+<p>论文在 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=Amazon-2023&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJBbWF6b24tMjAyMyIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3ODc2Nzg2MCwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.yGWByxpJO_3YZn3u4XQbnA9iyQ1udrPNHLu57QZ11m4&amp;zhida_source=entity" target="_blank" rel="noreferrer">Amazon-2023</a></span> 的 10 个子集上评估，包括：</p>
+<ul><li>Musical Instruments</li><li>Video Games</li><li>Industrial &amp; Scientific</li><li>Baby Products</li><li>Arts, Crafts &amp; Sewing</li><li>Sports &amp; Outdoors</li><li>Toys &amp; Games</li><li>Health &amp; Household</li><li>Beauty &amp; Personal Care</li><li>Books</li></ul>
 <p>评估指标是：</p>
-<pre><code class="language-text">Recall@5 / Recall@10
-NDCG@5 / NDCG@10
-</code></pre>
-<p>协议是 leave-one-out：</p>
-<pre><code class="language-text">最后一个交互做测试
-倒数第二个交互做验证
-</code></pre>
-<p>论文特别强调公平比较。很多 SID 方法用了丰富的 item metadata，而传统 SASRec 等序列模型只用 item ID，这会让 SID 方法占额外信息优势。因此 ReSID 同时比较了：</p>
-<ol>
-<li>只用 item ID 的序列模型；</li>
-<li>加入结构化 side information 的序列模型；</li>
-<li>SID-based 生成式推荐方法。</li>
-</ol>
+<div><pre><code class="language-text">Recall@5 / Recall@10
+NDCG@5 / NDCG@10</code></pre></div>
+<p>最后一个交互做测试，倒数第二个交互做验证。</p>
+<p>很多 SID 方法用了丰富的 item metadata，而传统 <span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=SASRec&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJTQVNSZWMiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.zNBdZ2_rrxzQEQ0eLGKfhwpYLUISZrSi2U53epfRTY4&amp;zhida_source=entity" target="_blank" rel="noreferrer">SASRec</a></span> 等序列模型只用 item ID，这会让 SID 方法占额外信息优势。因此 ReSID 同时比较了：</p>
+<ol><li>只用 item ID 的序列模型；</li><li>加入结构化 side information 的序列模型；</li><li>SID-based 生成式推荐方法。</li></ol>
 <p>这个设置很重要，因为它试图回答：</p>
-<blockquote>
-<p>SID 本身真的有效，还是只是因为它用了更多 side information？</p>
-</blockquote>
-<h2>8. 实验结果怎么看</h2>
+<blockquote> SID 本身真的有效，还是只是因为它用了更多 side information？</blockquote>
+<h3>8. 实验结果</h3>
+<figure><div><img src="../assets/posts/resid-semantic-id/02.jpg" alt="ReSID：从推荐系统视角重新设计语义ID 配图 2" loading="lazy" decoding="async"></div></figure>
 <p>主实验显示，ReSID 在十个数据集上整体最强。</p>
 <p>论文报告的平均相对提升包括：</p>
-<ul>
-<li>相比最好 SID baseline LETTER，Recall@5 / Recall@10 提升约 16.0% / 13.8%；</li>
-<li>NDCG@5 / NDCG@10 提升约 16.2% / 14.9%；</li>
-<li>相比 TIGER、EAGER、UNGER、ETEGRec 等方法也有稳定提升；</li>
-<li>平均相对提升超过 10%；</li>
-<li>量化阶段比 LETTER 快 77 到 122 倍，比 TIGER 约快 5 倍。</li>
-</ul>
+<ul><li>相比最好 SID baseline LETTER，Recall@5 / Recall@10 提升约 16.0% / 13.8%；</li><li>NDCG@5 / NDCG@10 提升约 16.2% / 14.9%；</li><li>相比 TIGER、EAGER、UNGER、ETEGRec 等方法也有稳定提升；</li><li>平均相对提升超过 10%；</li><li>量化阶段比 LETTER 快 77 到 122 倍，比 TIGER 约快 5 倍。</li></ul>
 <p>消融实验也很关键：</p>
 <h3>8.1 替换 FAMAE</h3>
 <p>固定 GAOQ，把 FAMAE 换成：</p>
-<ul>
-<li>LLM embedding；</li>
-<li>SASRec representation；</li>
-<li>BERT4Rec representation。</li>
-</ul>
+<ul><li>LLM embedding；</li><li>SASRec representation；</li><li>BERT4Rec representation。</li></ul>
 <p>结果 ReSID 都更好。说明单纯语义表示不够，单纯协同表示也不够，关键是字段级、推荐原生、同时保留结构语义和协同预测信息的表示。</p>
 <h3>8.2 替换 GAOQ</h3>
 <p>固定 FAMAE，把 GAOQ 换成：</p>
-<ul>
-<li>RQ-VAE；</li>
-<li>Hierarchical KMeans。</li>
-</ul>
+<ul><li>RQ-VAE；</li><li>Hierarchical KMeans。</li></ul>
 <p>结果 ReSID 仍然更好。说明有了好的连续表示还不够，量化方式必须考虑自回归解码的不确定性和 code 语义一致性。</p>
-<h3>8.3 表示可视化</h3>
+<h3>8.3 对比</h3>
 <p>论文用 t-SNE / UMAP 比较 FAMAE、BERT4Rec、Sentence-T5 的 embedding。</p>
 <p>观察结果是：</p>
-<ul>
-<li>Sentence-T5 语义聚类清晰，但协同行为社区不够好；</li>
-<li>BERT4Rec 能反映协同结构，但语义类别结构较弱；</li>
-<li>FAMAE 同时保留语义类别结构和行为社区结构。</li>
-</ul>
+<ul><li>Sentence-T5 语义聚类清晰，但协同行为社区不够好；</li><li>BERT4Rec 能反映协同结构，但语义类别结构较弱；</li><li>FAMAE 同时保留语义类别结构和行为社区结构。</li></ul>
 <p>这支撑了论文主张：FAMAE 不是简单丢弃语义，而是把语义和协同信号放进推荐任务原生的结构化字段空间里。</p>
-<h2>9. 这篇论文的真正贡献</h2>
-<p>ReSID 的贡献不只是提出一个新 tokenizer，而是把 SID tokenizer 的评价标准从“语义是否好”改成了“是否适合生成式推荐”。</p>
-<p>它提出了三个值得记住的判断：</p>
+<h3>9. 主要贡献</h3>
 <h3>9.1 推荐 tokenizer 应该由协同预测主导</h3>
 <p>生成式推荐最终要预测用户下一个会交互的物品。因此 item 表示首先要保留协同预测信息，而不是首先服从通用语义空间。</p>
 <h3>9.2 SID 不只是压缩码，还是生成目标</h3>
@@ -364,200 +233,54 @@ NDCG@5 / NDCG@10
 <h3>9.3 不依赖 LLM 反而可能更适合工业推荐</h3>
 <p>ReSID 的标题里有 “Beyond LLMs”，不是否定 LLM，而是强调：对于 SID tokenizer 来说，重型 LLM embedding 不一定是最合适、最高效的路径。</p>
 <p>如果平台已经有丰富结构化字段和行为日志，那么推荐原生的表示学习可能更便宜、更稳定，也更贴近下游目标。</p>
-<h2>10. 论文做得不够好的地方</h2>
+<h3>10. 未来工作</h3>
 <p>ReSID 的思路很清楚，但仍有一些值得继续追问的地方。</p>
 <h3>10.1 对结构化字段的依赖很强</h3>
 <p>ReSID 的前提是：结构化字段 <code>F</code> 在给定用户历史 <code>H</code> 时足以承载推荐所需信息。论文中这个假设可以写成：</p>
-<pre><code class="language-text">Y ⊥ X | (F, H)
-</code></pre>
+<p><span class="math-inline">\(Y ⊥ X | (F, H)\)</span> </p>
 <p>也就是原始内容 <code>X</code> 对目标 <code>Y</code> 的额外信息，可以被结构化字段和用户历史吸收。</p>
 <p>这个假设在 Amazon 这类字段较规整的数据集上比较合理，但在真实工业场景里未必总成立。很多平台的物品信息可能存在：</p>
-<pre><code class="language-text">字段缺失
+<div><pre><code class="language-text">字段缺失
 类目体系粗糙
 tag 噪声大
 新物品冷启动字段稀疏
-多模态内容没有被充分结构化
-</code></pre>
-<p>如果结构化字段质量不高，FAMAE 就可能学到不完整甚至有偏的 item 表示。论文没有系统分析字段质量下降时 ReSID 的鲁棒性。</p>
+多模态内容没有被充分结构化</code></pre></div>
+<p>如果结构化字段质量不高，FAMAE 就可能学到不完整甚至有偏的 item 表示。论文没有<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E7%B3%BB%E7%BB%9F%E5%88%86%E6%9E%90&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLns7vnu5_liIbmnpAiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.MVZvNeNWSo_6vW4U-RhsonAQeARI1HLXJmC0LFOkz10&amp;zhida_source=entity" target="_blank" rel="noreferrer">系统分析</a></span>字段质量下降时 ReSID 的<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E9%B2%81%E6%A3%92%E6%80%A7&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLpsoHmo5LmgKciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.zKFb4599IB7hyDx58Yns_dgCfWkQOj4aOQekY19sBso&amp;zhida_source=entity" target="_blank" rel="noreferrer">鲁棒性</a></span>。</p>
 <h3>10.2 对多模态原始内容利用不足</h3>
-<p>论文标题强调 Beyond LLMs，这是亮点，但也带来一个问题：它主要证明“不依赖 LLM embedding 也能做好 SID”，却没有充分探索：</p>
-<pre><code class="language-text">结构化字段 + 多模态内容 + 行为信号
-</code></pre>
-<p>三者如何融合。</p>
-<p>在短视频、直播、广告推荐中，画面、音频、OCR、ASR、商品图等原始内容很重要。完全依赖结构化字段可能会损失内容细节。更合理的方向可能不是“抛开 LLM/多模态模型”，而是让它们退到辅助位置：</p>
-<pre><code class="language-text">行为信号主导
-结构化字段约束
-多模态语义补充
-</code></pre>
+<p>论文标题强调 Beyond LLMs，这是亮点，但也带来一个问题：它主要证明“不依赖 LLM embedding 也能做好 SID”，还需要充分探索：结构化字段 + 多模态内容 + 行为信号三者如何融合。</p>
+<p>在短视频、直播、广告推荐中，画面、音频、<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=OCR&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiJPQ1IiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.sjykFTjxYxsMPlRtvAHeXSqtJWs1WQTyZnDX-yvs7JI&amp;zhida_source=entity" target="_blank" rel="noreferrer">OCR</a></span>、ASR、商品图等原始内容很重要。完全依赖结构化字段可能会损失内容细节。更合理的方向可能不是“抛开 LLM/多模态模型”，而是让它们退到辅助位置：行为信号主导、结构化字段约束、多模态语义补充。</p>
 <h3>10.3 GAOQ 缺少可独立诊断指标</h3>
 <p>FAMAE 有两个 task-aware 指标，可以在不完整训练下游生成模型的情况下判断 embedding 好不好。但 GAOQ 没有同等级别的诊断工具。</p>
 <p>论文证明和实验说明 GAOQ 有效，但如果实际落地时想快速比较两个 tokenizer，还不够方便。我们仍然需要训练下游 G-stage 才能准确知道量化是否好。</p>
 <p>更理想的情况是有一组 tokenizer 级别指标，例如：</p>
-<pre><code class="language-text">每层 code 使用熵
+<div><pre><code class="language-text">每层 code 使用熵
 prefix-conditional entropy
 同 code 内 embedding 方差
 同 code 内行为共现一致性
 不同前缀下同 index 的方向一致性
-目标 item 与历史 item 的 SID prefix overlap
-</code></pre>
+目标 item 与历史 item 的 SID prefix overlap</code></pre></div>
 <p>这些指标可以帮助我们不训练完整生成模型就初筛 tokenizer。</p>
-<h3>10.4 实验主要是离线公开数据集，缺少工业级验证</h3>
-<p>论文用了 10 个 Amazon-2023 子集，规模覆盖到 Books 的 48 万 item 和 868 万交互，已经不小。但它仍然是离线公开数据集实验。</p>
-<p>真实工业系统还会面对：</p>
-<pre><code class="language-text">小时级/天级新增 item
-用户兴趣快速漂移
-召回 latency 约束
-在线 A/B 指标和离线 Recall 不一致
-多目标业务指标
-强曝光偏差
-多路召回融合
-</code></pre>
-<p>ReSID 证明了 SID 构造更好，但还没有证明它在真实在线推荐链路中如何和现有召回、粗排、精排协同。</p>
-<h3>10.5 G-stage 收敛慢的问题还没有解决</h3>
-<p>论文自己也承认，SID-based generative models 收敛速度比 SASRec 这类 item-ID 模型慢很多。这是生成式推荐很现实的问题。</p>
-<p>原因可能包括：</p>
-<pre><code class="language-text">一个 item 要拆成多 token 预测
+<h3>10.4 G-stage 收敛慢的问题还没有解决</h3>
+<p>SID-based generative models 收敛速度比 SASRec 这类 item-ID 模型慢很多。对于工业系统来说，这是生成式推荐很现实的问题。</p>
+<div><pre><code class="language-text">一个 item 要拆成多 token 预测
 beam search 训练/推理成本高
 错误会沿 SID 层级累积
-长尾 code 学习信号稀疏
-</code></pre>
+长尾 code 学习信号稀疏</code></pre></div>
 <p>ReSID 改善了 tokenizer，但没有从根本上解决生成模型训练慢、解码慢的问题。</p>
-<h3>10.6 对动态更新不够友好</h3>
+<h3>10.5 对动态更新不够友好</h3>
 <p>工业推荐里的 item 集合不断变化。如果每天都有大量新增物品，SID tokenizer 需要支持增量更新。</p>
 <p>但 GAOQ 是全局聚类 + 全局对齐。如果新增 item 很多，可能面临：</p>
-<pre><code class="language-text">是否重新训练 FAMAE
+<div><pre><code class="language-text">是否重新训练 FAMAE
 是否重新聚类
 旧 item 的 SID 是否变化
 生成模型是否需要重新训练
-新旧 SID 如何兼容
-</code></pre>
+新旧 SID 如何兼容</code></pre></div>
 <p>论文没有详细讨论 incremental tokenization。这是落地时很关键的问题，因为线上系统通常不能频繁改变所有物品的 token。</p>
-<h3>10.7 对冷启动 item 的讨论不够</h3>
-<p>ReSID 依赖结构化字段，因此理论上对冷启动 item 有优势：新 item 有字段就能生成 embedding 和 SID。</p>
-<p>但论文没有专门评估冷启动场景。例如：</p>
-<pre><code class="language-text">新 item 无交互但有 metadata
-新 item 只有标题/图片没有完整结构化字段
-新类目/新品牌出现
-</code></pre>
-<p>这些场景能否稳定生成可预测 SID，还需要实验验证。</p>
-<h2>11. 接下来可以做的方向</h2>
-<p>基于上面的不足，可以继续做几个比较明确的研究方向。</p>
-<h3>11.1 做多模态增强版 FAMAE</h3>
-<p>可以保留 FAMAE 的推荐原生框架，但把多模态内容作为辅助字段加入。</p>
-<p>一种可能做法：</p>
-<pre><code class="language-text">结构化字段 embedding
-+ 文本/图像/音频 encoder 产生的语义簇字段
-+ 行为统计字段
--&gt; FAMAE masked field prediction
-</code></pre>
-<p>注意重点不是把 LLM embedding 直接当主表示，而是把多模态信息离散化或字段化，让它服从推荐任务的 masked prediction 目标。</p>
-<p>这样可以兼顾：</p>
-<pre><code class="language-text">协同信号
-结构化语义
-原始内容细节
-</code></pre>
-<h3>11.2 自适应字段权重和 mask 策略</h3>
-<p>当前 FAMAE 里的字段权重 <code>alpha_k</code> 和 mask policy 主要是人工设定。可以做成自适应。</p>
-<p>例如根据字段对下游预测的贡献动态调整：</p>
-<pre><code class="language-text">高贡献字段提高 mask 概率
-噪声字段降低权重
-稀疏字段单独建模
-不同 domain 使用不同字段权重
-</code></pre>
-<p>在电商里，价格、品牌、类目可能很重要；在短视频里，作者、主题、互动行为可能更重要；在广告里，转化类型和行业标签可能更关键。统一字段权重未必最优。</p>
-<h3>11.3 设计 GAOQ 的快速诊断指标</h3>
-<p>这是很值得做的方向。目标是在不训练完整 G-stage 的情况下判断 SID 好不好。</p>
-<p>可以设计几类指标：</p>
-<pre><code class="language-text">Code Balance: 每层 code 分布是否均衡
-Prefix Predictability: H(c_l | C_&lt;l) 的估计值
-Index Consistency: 不同 prefix 下同 index 的方向相似度
-Collaborative Coherence: 同 code item 的共现图社区一致性
-Target-History Overlap: 目标 item 和用户历史 item 的 SID 前缀重合率
-</code></pre>
-<p>如果这些指标和下游 Recall/NDCG 高相关，就能大幅降低 tokenizer 搜索成本。</p>
-<h3>11.4 增量式 GAOQ</h3>
-<p>工业落地非常需要增量 tokenization。</p>
-<p>可以考虑：</p>
-<pre><code class="language-text">固定已有 anchor
-新增 item 只做最近 anchor 分配
-局部子树重聚类
-保留旧 SID 不变
-周期性大版本重建 tokenizer
-</code></pre>
-<p>关键约束是：</p>
-<pre><code class="language-text">旧 item SID 尽量不变
-新 item 能快速获得合法 SID
-生成模型不需要每天大规模重训
-</code></pre>
-<p>这会让 ReSID 更接近真实线上系统。</p>
-<h3>11.5 把 GAOQ 做成可学习但稳定的量化器</h3>
-<p>ETEGRec 式端到端训练的问题是 SID 不稳定，目标非平稳。但完全非参数聚类也有局限。</p>
-<p>一个折中方向是：</p>
-<pre><code class="language-text">先用 GAOQ 初始化 SID
-再用小步长、强约束的可学习量化器微调
-约束旧 code 不大幅漂移
-同时优化 prefix predictability 和推荐损失
-</code></pre>
-<p>这样既保留 GAOQ 的稳定初始化，又能让 tokenizer 进一步适应下游任务。</p>
-<h3>11.6 针对生成模型的训练加速</h3>
-<p>既然 SID 生成模型收敛慢，可以从 G-stage 入手：</p>
-<pre><code class="language-text">层级并行解码
-非自回归或半自回归 SID 预测
-先预测前缀再检索后缀
-prefix-level contrastive learning
-SID 层级辅助 loss
-生成式召回 + ANN 混合召回
-</code></pre>
-<p>比如先生成前两层 SID 前缀，再在前缀桶内用轻量打分模型排序，可能比完整生成每一层更快。</p>
-<h3>11.7 面向多目标推荐的 SID</h3>
-<p>论文主要看 next-item Recall/NDCG，但工业推荐有多目标：</p>
-<pre><code class="language-text">点击
-观看时长
-购买
-转化
-留存
-多样性
-商业价值
-</code></pre>
-<p>不同目标下，item 的“相近”定义不同。未来可以研究多目标 SID：</p>
-<pre><code class="language-text">共享高层 SID 表示通用兴趣
-低层 SID 根据业务目标分化
-或者为不同目标学习不同 code head
-</code></pre>
-<p>这会比单一 next-item tokenization 更贴近真实推荐。</p>
-<h3>11.8 和 LLM-Rec 的结合方向</h3>
-<p>ReSID 不是 LLM-Rec 论文，但它对 LLM-Rec 很有启发。当前很多 LLM-Rec 方法重视“item token 能否被语言解释”，ReSID 提醒我们还要看：</p>
-<pre><code class="language-text">item token 是否可预测
-同层 token 是否有一致含义
-token 前缀是否对应用户兴趣簇
-token 是否保留协同行为转移
-</code></pre>
-<p>在比赛或业务中，可以做一个轻量版 ReSID 思路：</p>
-<pre><code class="language-text">用已有 itemic token
-统计 token 层级和行为转移的关系
-重排或重构低层 token
-让同一层 token 更行为一致
-再用 SFT/RL 训练生成模型
-</code></pre>
-<p>这可能比单纯扩充 caption 数据更有效。</p>
-<h2>12. 对 LLM-Rec 比赛/工业推荐的启发</h2>
-<p>如果把 ReSID 的思想迁移到 LLM-Rec 或工业生成式推荐里，它给出的启发很直接：</p>
-<ol>
-<li>不要只追求 item token 的自然语言可解释性，还要看 token 是否保留行为转移信息。</li>
-<li>token 编码最好能让同一层 token 在不同前缀下含义稳定，否则生成模型很难学。</li>
-<li>构造推荐 SFT 数据时，应该强调行为强度、跨域转移、结构化字段，而不是只做 caption 对齐。</li>
-<li>对多级 itemic token，可以评估每一层 token 的可预测性，而不是只看最终 item 命中。</li>
-<li>如果有丰富的 pid2tag、pid2caption、行为序列和 domain 字段，可以考虑做推荐原生的 token 聚类或 token 重排。</li>
-</ol>
-<p>换句话说，ReSID 提醒我们：生成式推荐的 token 不是“给 LLM 看的语义标签”，而是“给推荐模型预测的行为接口”。</p>
-<h2>13. 总结</h2>
+<h3>11. 总结</h3>
 <p>ReSID 的核心思想可以压缩成一句话：</p>
-<blockquote>
-<p>用推荐任务原生的结构化字段和用户行为来学习 item 表示，再用全局对齐的层级量化生成更稳定、更可预测的 Semantic ID。</p>
-</blockquote>
+<blockquote> 用推荐任务原生的结构化字段和用户行为来学习 item 表示，再用全局对齐的层级量化生成更稳定、更可预测的 Semantic ID。</blockquote>
 <p>FAMAE 解决“连续表示是否保留推荐信息”的问题，GAOQ 解决“离散 SID 是否适合自回归预测”的问题。两者合在一起，使 ReSID 不依赖 LLM embedding，也能在多个公开数据集上超过强序列推荐和已有 SID 生成式推荐方法。</p>
-<p>这篇论文的价值在于，它把生成式推荐 tokenizer 从“语义压缩工程”提升成了一个有信息论目标、有推荐任务对齐、有解码友好性约束的系统设计问题。</p>
-<div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+<p>这篇论文的价值在于，它把生成式推荐 tokenizer 从“语义压缩工程”提升成了一个有信息论目标、有推荐任务对齐、有解码友好性约束的<span><a href="https://zhida.zhihu.com/search?content_id=278767860&amp;content_type=Article&amp;match_order=1&amp;q=%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODM2NjgsInEiOiLns7vnu5_orr7orqEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzg3Njc4NjAsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.i971SUFAJR6uZbmS0iUELwXZmmpDochlVhPnmx4hnG4&amp;zhida_source=entity" target="_blank" rel="noreferrer">系统设计</a></span>问题。</p></div><div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>

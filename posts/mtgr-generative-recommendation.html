@@ -23,11 +23,351 @@
         <div class="article-meta"><span>生成式推荐</span><span>克西</span><time datetime="2026-05-29">2026.05.29</time><span>4 MIN READ</span></div>
         <a class="source-link" href="https://zhuanlan.zhihu.com/p/2043718578311100033" target="_blank" rel="noreferrer">知乎原文 ↗</a>
       </header>
-      <div class="article-body"><h2>0. 写在前面</h2><p>先回顾一下：</p><p>OneRec 的目标是：</p><div><pre><code class="language-text">用生成式模型统一召回和排序，直接生成推荐 session。</code></pre></div><p>PinRec 的目标是：</p><div><pre><code class="language-text">用生成式模型生成 dense embedding，作为工业级召回通道。</code></pre></div><p>MTGR 的目标更像是：</p><div><pre><code class="language-text">在不丢掉传统 DLRM 交叉特征的前提下，
-把 ranking model 做成可以像 GRM 一样扩展的大序列模型。</code></pre></div><p>很多生成式推荐为了把推荐问题组织成 token 序列，会放弃传统工业推荐模型里长期积累的 cross features。但美团发现，<b>丢掉 cross features 会严重伤害效果，而且靠扩大模型规模也补不回来</b>。</p><p>所以 MTGR 的核心不是“生成 item ID”，也不是“生成 embedding”。它更像一种 <b>generative-style ranking framework</b>：</p><div><pre><code class="language-text">把同一用户请求下的多个候选 item 聚合成一个 token 序列，
+      <div class="article-body"><h2>0. 写在前面</h2>
+<p>先回顾一下：</p>
+<p>OneRec 的目标是：</p>
+<div><pre><code class="language-text">用生成式模型统一召回和排序，直接生成推荐 session。</code></pre></div>
+<p>PinRec 的目标是：</p>
+<div><pre><code class="language-text">用生成式模型生成 dense embedding，作为工业级召回通道。</code></pre></div>
+<p>MTGR 的目标更像是：</p>
+<div><pre><code class="language-text">在不丢掉传统 DLRM <span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E4%BA%A4%E5%8F%89%E7%89%B9%E5%BE%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLkuqTlj4nnibnlvoEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.DARn5hLhUpU4GegNn_u46SOnO8HQVvPcFDGtHx5kvE0&amp;zhida_source=entity" target="_blank" rel="noreferrer">交叉特征</a></span>的前提下，
+把 ranking model 做成可以像 <span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=GRM&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiJHUk0iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.FTirKCOmRomqf_iNQaTkZoP7YdVKcgGby9pEJ90uvXM&amp;zhida_source=entity" target="_blank" rel="noreferrer">GRM</a></span> 一样扩展的大序列模型。</code></pre></div>
+<p>很多<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E7%94%9F%E6%88%90%E5%BC%8F%E6%8E%A8%E8%8D%90&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLnlJ_miJDlvI_mjqjojZAiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.E4SSA8QJYQmaZ7E74xof_4HhvRHASX1b5yhPIO53_T4&amp;zhida_source=entity" target="_blank" rel="noreferrer">生成式推荐</a></span>为了把推荐问题组织成 token 序列，会放弃传统工业推荐模型里长期积累的 cross features。但美团发现，<b>丢掉 cross features 会严重伤害效果，而且靠扩大模型规模也补不回来</b>。</p>
+<p>所以 MTGR 的核心不是“生成 item ID”，也不是“生成 embedding”。它更像一种 <b>generative-style ranking framework</b>：</p>
+<div><pre><code class="language-text">把同一用户请求下的多个候选 item 聚合成一个 token 序列，
 保留用户特征、历史序列、实时行为、候选特征、cross features，
-再用 HSTU/self-attention 一次性输出所有候选的排序分数。</code></pre></div><p>论文报告 MTGR-large 相比美团线上优化两年</p></div>
-      <div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
+再用 <span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=HSTU&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiJIU1RVIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1ODQwNDc4LCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.oRNJ0aVIxiHbPCosEKDqszs15tjeMZRsQrN_ayGvx8U&amp;zhida_source=entity" target="_blank" rel="noreferrer">HSTU</a></span>/self-attention 一次性输出所有候选的排序分数。</code></pre></div>
+<p>论文报告 MTGR-large 相比美团线上优化两年的 DLRM baseline，实现 <b>65x FLOPs per sample</b> 的前向计算规模，训练成本基本不变，推理成本反而降低 <b>12%</b>，线上带来 <b>PV_CTR +1.90%</b>、<b>UV_CTCVR +1.02%</b>。论文还说这是近两年离线和线上最大收益，并已部署到美团外卖主流量。</p>
+<p>它回答了一个很工业的问题：</p>
+<blockquote> 推荐模型到底该怎么 scale？是完全转向生成式范式，还是把生成式序列建模能力接回传统排序特征体系？</blockquote>
+<p>MTGR 选择了后者。</p>
+<h3>1. 背景：DLRM 和 GRM 各自卡在哪里</h3>
+<p>论文把工业推荐模型分成两类。</p>
+<p>第一类是 <b>DLRM, Deep Learning Recommendation Model</b>。这是工业推荐过去十年最常见的范式：</p>
+<div><pre><code class="language-text">user features
+item features
+context features
+user behavior sequence
+cross features
+  -&gt; embedding
+  -&gt; sequence module / cross module / MLP
+  -&gt; score(user, item)</code></pre></div>
+<p>DLRM 的优势是效果强，尤其擅长利用人工设计的特征和交叉特征。例如：</p>
+<div><pre><code class="language-text">用户对当前候选商家的历史 CTR
+用户在当前地理位置附近的购买频率
+用户对候选品类的曝光次数和点击率
+候选 item 与用户实时行为之间的统计交叉</code></pre></div>
+<p>这些 cross features 很多是业务、数据、工程团队多年积累出来的，在线上排序里非常值钱。</p>
+<p>但 DLRM 的扩展性差。因为它通常对每个 user-item pair 独立打分：</p>
+<div><pre><code class="language-text">用户 u 有 K 个候选 item
+传统 DLRM 需要跑 K 次或近似 K 次重模型</code></pre></div>
+<p>如果扩大 cross module、MLP 或 attention，推理成本会随候选数近似线性增长，线上延迟难以承受。</p>
+<p>第二类是 <b>GRM, Generative Recommendation Model</b>。</p>
+<p>GRM 把用户行为组织成 token 序列，用 transformer 做 next token prediction 或类似生成式建模。它的优势是：</p>
+<ol><li>可以端到端建模长用户行为链。</li><li>用户级计算可以复用，减少样本冗余。</li><li>transformer/HSTU 这类结构有更好的 scaling potential。</li></ol>
+<p>但 GRM 的一个大问题是：为了形成“自然语言式”的行为序列，它往往只保留 item/action token，难以保留候选和用户之间的复杂 cross features。</p>
+<p>论文的关键观察是：</p>
+<div><pre><code class="language-text">去掉 cross features 会显著损害模型效果；
+这种损害无法通过单纯扩大 GRM 模型规模补回来。</code></pre></div>
+<p>这就是 MTGR 的出发点。</p>
+<h3>2. MTGR 想解决的核心矛盾</h3>
+<p>MTGR 要同时拿到两边的好处：</p>
+<div><pre><code class="language-text">DLRM 的特征完整性
++ GRM 的用户级序列建模和<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E5%8F%AF%E6%89%A9%E5%B1%95%E6%80%A7&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLlj6_mianlsZXmgKciLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.jJ-a6dDZpThQ0Xb9-2NB8XUp56G9Z43e9o_BJgAsIkY&amp;zhida_source=entity" target="_blank" rel="noreferrer">可扩展性</a></span></code></pre></div>
+<p>它不想做一个“纯生成式推荐器”，而是要做一个能 scale 的 ranking model。</p>
+<p>论文里最重要的问题可以写成：</p>
+<div><pre><code class="language-text">如何保留 DLRM 的 cross features，
+同时避免对每个候选 item 独立跑一遍重模型？</code></pre></div>
+<p>MTGR 的答案是：</p>
+<div><pre><code class="language-text">把同一用户请求下的所有候选聚合成一个样本，
+把 user/profile/sequence/realtime/candidate/cross features 全部 token 化，
+用带定制 mask 的 HSTU 一次性建模，
+最后只取 candidate tokens 的输出做 logit。</code></pre></div>
+<p>也就是说，MTGR 的核心操作是 <b>user sample aggregation</b>。</p>
+<h3>3. 传统 DLRM 的数据排列</h3>
+<p>传统排序里，一个用户和一个候选 item 形成一个样本。</p>
+<p>论文写成：</p>
+<p><span class="math-inline">\(D_i = [U, S, R, C_i, I_i]\)</span> </p>
+<p>其中：</p>
+<ol><li><code>U</code>：用户 profile 特征，例如年龄、性别等。</li><li><code>S</code>：用户长期历史行为序列。</li><li><code>R</code>：用户最近几小时或一天内的实时行为序列。</li><li><code>C_i</code>：用户和第 <code>i</code> 个候选之间的 cross features。</li><li><code>I_i</code>：第 <code>i</code> 个候选 item 自身特征。</li></ol>
+<p>如果一个请求有 <code>K</code> 个候选，传统 DLRM 会形成：</p>
+<p><span class="math-inline">\(D_1 = [U, S, R, C_1, I_1] \\ D_2 = [U, S, R, C_2, I_2] \\ ... \\ D_K = [U, S, R, C_K, I_K]\)</span> </p>
+<p>问题很明显：<code>U/S/R</code> 对同一个用户请求是重复的，但每个候选都要重新计算一遍。越想把模型做大，这种重复越浪费。</p>
+<p>传统优化常见有两类。</p>
+<p>一种是扩大 user tower，把用户表示算好后复用。但这类方法通常削弱 user-item 交互，cross features 很难充分进入重模型。</p>
+<p>另一种是扩大 cross module，让用户和候选交互更强。但 cross module 要对每个候选单独跑，成本随候选数线性增长。</p>
+<p>MTGR 的数据重排正是为了解这个矛盾。</p>
+<h3>4. MTGR 的数据重排：把候选聚合成序列</h3>
+<figure><div><img src="../assets/posts/mtgr-generative-recommendation/01.jpg" alt="MTGR：工业级生成式推荐框架 配图 1" loading="lazy" decoding="async"></div></figure>
+<p>MTGR 不再把每个候选拆成独立样本，而是把同一个用户请求下的候选聚合起来：</p>
+<p><span class="math-inline">\(D = [U, S, R, [C, I]_1, [C, I]_2, ..., [C, I]_K]\)</span> </p>
+<div><pre><code class="language-text">用户公共信息：U, S, R
+候选 1：cross features C_1 + item features I_1
+候选 2：cross features C_2 + item features I_2
+候选 3：cross features C_3 + item features I_3
+...</code></pre></div>
+<p>这样一个样本里包含同一用户的一组候选。模型只需要对这个请求做一次<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=3&amp;q=%E5%BA%8F%E5%88%97%E5%BB%BA%E6%A8%A1&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLluo_liJflu7rmqKEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MywiemRfdG9rZW4iOm51bGx9.WC0FJEVWztvV5lymgIpjcvikMXgNieIqjUuQX_av7IU&amp;zhida_source=entity" target="_blank" rel="noreferrer">序列建模</a></span>，就能输出所有候选的 logit。</p>
+<p>传统 DLRM 是：</p>
+<div><pre><code class="language-text">for candidate in candidates:
+    score = model(user, candidate)</code></pre></div>
+<p>MTGR 是：</p>
+<div><pre><code class="language-text">scores = model(user, all_candidates)</code></pre></div>
+<p>这让用户侧长序列和公共特征只计算一次，同时候选 tokens 仍然可以携带自己的 cross features。</p>
+<p>这也是 MTGR 能把单样本 FLOPs 做到 DLRM 的 65 倍，但推理成本仍然可控甚至降低的根本原因。</p>
+<h3>5. MTGR 如何把特征变成 token</h3>
+<p>MTGR 的输入并不是天然 token。它把不同类型的推荐特征统一成 transformer/HSTU 可处理的 token 序列。</p>
+<h3>5.1 用户 scalar 特征</h3>
+<p>用户 profile 里的标量或离散特征，例如：</p>
+<div><pre><code class="language-text">age
+gender
+city
+membership level</code></pre></div>
+<p>每个特征可以自然变成一个 token：</p>
+<div><pre><code class="language-text">Token(age)
+Token(gender)
+...</code></pre></div>
+<p>这些 token 维度统一到 <code>d_model</code>。</p>
+<h3>5.2 历史行为序列 S</h3>
+<p>长期历史行为 <code>S</code> 中每个 item 被视为一个 token。</p>
+<p>每个历史 item 内部可能有多种特征：</p>
+<div><pre><code class="language-text">item ID
+tag
+brand
+historical CTR
+...</code></pre></div>
+<p>这些特征先 embedding lookup，再 concat，再经过 MLP 映射到统一维度：</p>
+<div><pre><code class="language-text">FeatS_i = MLP(Concat(Emb(features of S_i)))</code></pre></div>
+<p>于是长期历史序列变成：</p>
+<div><pre><code class="language-text">Token(seq_1), Token(seq_2), ..., Token(seq_N)</code></pre></div>
+<h3>5.3 实时行为序列 R</h3>
+<p>实时行为 <code>R</code> 和 <code>S</code> 类似，也把每个最近交互 item 变成一个 token。论文里在线配置是：</p>
+<div><pre><code class="language-text">S 最大长度 = 1000
+R 最大长度 = 100</code></pre></div>
+<p><code>R</code> 很重要，因为外卖推荐里用户最近几小时或当天行为可能强烈影响当前需求。</p>
+<h3>5.4 候选 token</h3>
+<p>每个候选 token 不只包含 item 自身特征 <code>I_i</code>，还包含 cross features <code>C_i</code>：</p>
+<div><pre><code class="language-text">candidate token_i = MLP(Concat(Emb(C_i), Emb(I_i)))</code></pre></div>
+<p>这是 MTGR 和很多 GRM 的关键区别。候选 token 里保留了候选和用户之间的交叉统计，例如候选维度的历史 CTR、曝光数、用户-候选交互统计等。</p>
+<p>最终输入序列类似：</p>
+<div><pre><code class="language-text">[user tokens,
+ long-term seq tokens,
+ realtime seq tokens,
+ candidate_1 token,
+ candidate_2 token,
+ ...
+ candidate_K token]</code></pre></div>
+<p>HSTU 处理这个序列后，取 candidate tokens 的输出，接 MLP 得到每个候选的 logit。</p>
+<h3>6. 为什么 MTGR 仍然叫 <span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=2&amp;q=Generative&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiJHZW5lcmF0aXZlIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1ODQwNDc4LCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjIsInpkX3Rva2VuIjpudWxsfQ.J8_i2UU5if-oUYbtsPYSx2B7hvJP-_-P7g7N-wQt4iU&amp;zhida_source=entity" target="_blank" rel="noreferrer">Generative</a></span> Recommendation</h3>
+<p>读这篇论文时容易困惑：MTGR 好像没有生成 item ID，也没有生成推荐列表，为什么叫 generative recommendation？</p>
+<p>我的理解是：MTGR 借的是 GRM 的 <b>tokenized sequence modeling 和 scalable attention framework</b>，而不是典型的 autoregressive item generation。</p>
+<p>它和 OneRec、PinRec 的关系可以这样理解：</p>
+<div><pre><code class="language-text">OneRec：生成 semantic ID/session
+PinRec：生成 dense embedding 做召回
+MTGR：把 ranking 样本 token 化，用 HSTU/GRM 式序列模型扩展 ranking</code></pre></div>
+<p>MTGR 的“生成式”更多体现在：</p>
+<ol><li>把推荐数据重组为 token 序列。</li><li>使用 HSTU 这类面向 generative recommender 的序列建模架构。</li><li>利用用户级聚合减少重复计算，从而支持 scaling law。</li></ol>
+<p>但它的训练目标不是 next-token prediction，而是 discriminative ranking loss。论文明确说：</p>
+<div><pre><code class="language-text">MTGR incorporates cross features in candidate tokens and learns with a discriminative loss.</code></pre></div>
+<p>所以更准确地说，MTGR 是 <b>generative-style scalable ranking model</b>。</p>
+<h3>7. HSTU 编码器：MTGR 的主体结构</h3>
+<figure><div><img src="../assets/posts/mtgr-generative-recommendation/02.jpg" alt="MTGR：工业级生成式推荐框架 配图 2" loading="lazy" decoding="async"></div></figure>
+<p>MTGR 使用 HSTU 风格的 encoder-only 架构。输入是一长串 token，输出每个 token 的表示。</p>
+<p>HSTU block 大致包含：</p>
+<div><pre><code class="language-text">Group Layer Norm
+Q/K/V/U projections
+masked attention
+value update
+U 与更新后的 V 做交互
+Group Layer Norm
+MLP + residual</code></pre></div>
+<p>论文里的 attention 更新可以直观理解成：</p>
+<div><pre><code class="language-text">根据定制 mask，让不同类型 token 在允许的信息范围内交互；
+然后更新各 token 表示。</code></pre></div>
+<p>最后 candidate token 的输出进入 MLP：</p>
+<div><pre><code class="language-text">candidate_output_i -&gt; MLP -&gt; logit_i</code></pre></div>
+<p>与传统 DLRM 的最大区别是：候选之间、候选和实时行为、候选和长期序列，都在同一个序列模型里以 token 形式交互。</p>
+<h3>8. <span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=Group-Layer+Normalization&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiJHcm91cC1MYXllciBOb3JtYWxpemF0aW9uIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1ODQwNDc4LCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ._LIcgb0PvUKUMFZxPdCcciRFnv-JD5jEKuY1hl911kY&amp;zhida_source=entity" target="_blank" rel="noreferrer">Group-Layer Normalization</a></span>：为什么普通 LN 不够</h3>
+<p>MTGR 输入 token 来自不同<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AF%AD%E4%B9%89%E7%A9%BA%E9%97%B4&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLor63kuYnnqbrpl7QiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.Y6N2iP859yKYWUurXIc_bqJke1L427LLU2WIia7j9zU&amp;zhida_source=entity" target="_blank" rel="noreferrer">语义空间</a></span>：</p>
+<div><pre><code class="language-text">用户 profile token
+长期历史 item token
+实时行为 token
+候选 token
+cross feature token</code></pre></div>
+<p>这些 token 的统计分布很可能差异很大。比如年龄/性别这类 profile 特征、历史 item embedding、候选 cross feature 统计，本来就不是同一种东西。</p>
+<p>如果直接用普通 LayerNorm，把它们放在一起统一归一化，可能会让不同 domain 的 token 分布互相干扰。</p>
+<p>所以 MTGR 提出 <b>Group-Layer Normalization, GLN</b>：</p>
+<div><pre><code class="language-text">同一类型/同一 domain 的 token 作为一个 group，
+分别做 LayerNorm。</code></pre></div>
+<p>直观上：</p>
+<div><pre><code class="language-text">user tokens 用自己的均值方差归一化
+seq tokens 用自己的均值方差归一化
+rt tokens 用自己的均值方差归一化
+candidate tokens 用自己的均值方差归一化</code></pre></div>
+<p>GLN 的作用是把不同语义空间对齐到可比较的尺度，再进入 self-attention。</p>
+<p><span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E6%B6%88%E8%9E%8D%E5%AE%9E%E9%AA%8C&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLmtojono3lrp7pqowiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.YTtf7DjSIB7A64t7py_YCOybvtJMBuxk_dh8H4xkEgU&amp;zhida_source=entity" target="_blank" rel="noreferrer">消融实验</a></span>也证明它重要。MTGR-small 的 CTCVR GAUC 是 0.6603，去掉 GLN 后降到 0.6585；这个下降幅度已经接近 small 到 medium 的部分收益。</p>
+<h3>9. Dynamic Masking：避免信息泄漏的关键</h3>
+<p>MTGR 的另一个关键设计是 dynamic masking。</p>
+<p>因为 MTGR 把同一个用户请求下的实时行为和候选聚合成一个序列，如果 mask 设计不对，就可能发生信息泄漏。</p>
+<p>论文把 token 分成三类：</p>
+<h3>9.1 Static sequence</h3>
+<p>包括：</p>
+<div><pre><code class="language-text">U：用户 profile
+S：长期历史序列</code></pre></div>
+<p>这些信息发生在当前聚合窗口之前，不会造成因果问题。因此它们对所有 token 可见。</p>
+<p>规则：</p>
+<div><pre><code class="language-text">static sequence visible to all tokens</code></pre></div>
+<h3>9.2 Dynamic sequence</h3>
+<p>主要是：</p>
+<div><pre><code class="language-text">R：实时行为序列</code></pre></div>
+<p>实时行为可能和候选曝光窗口重叠。例如用户下午的候选不能看到晚上才发生的行为，否则就是未来信息泄漏。</p>
+<p>因此 <code>R</code> 必须按照时间做 causal visibility：</p>
+<div><pre><code class="language-text">每个实时行为 token 只对它之后发生的 token 可见</code></pre></div>
+<p>也就是说，候选只能看见自己之前已经发生的实时行为，不能看见未来实时行为。</p>
+<h3>9.3 Candidate tokens</h3>
+<p>候选 token 只允许看自己：</p>
+<div><pre><code class="language-text">candidate token visible to itself only</code></pre></div>
+<p>这条规则很重要。否则不同候选之间可能互相泄漏标签相关信息，或者形成不合理的候选间依赖。</p>
+<p>最终 mask 规则是：</p>
+<div><pre><code class="language-text">1. U/S 对所有 token 可见
+2. R 按时间因果可见
+3. Candidate 只看自己</code></pre></div>
+<p>去掉 dynamic mask 后，MTGR-small 的 CTCVR GAUC 从 0.6603 降到 0.6587，说明 mask 不只是理论洁癖，而是真<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E5%BD%B1%E5%93%8D%E7%BA%BF&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLlvbHlk43nur8iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.eSLr9ty1B_DQTpWA17GMPgmoR7oAl4urB8weQS0_koQ&amp;zhida_source=entity" target="_blank" rel="noreferrer">影响线</a></span>上排序任务。</p>
+<h3>10. User-level compression</h3>
+<p><span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E8%AE%BA%E6%96%87%E6%91%98%E8%A6%81&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLorrrmlofmkZjopoEiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.XVa9U6eHbXv9nX3b3oCVO3SFW5Yt09_Org8BmHIZG1A&amp;zhida_source=entity" target="_blank" rel="noreferrer">论文摘要</a></span>里说 MTGR 通过 user-level compression 加速训练和推理。这个概念可以和前面的 user sample aggregation 放在一起理解。</p>
+<p>传统 DLRM 对同一用户的每个候选独立处理：</p>
+<div><pre><code class="language-text">K candidates -&gt; K samples</code></pre></div>
+<p>MTGR 聚合后：</p>
+<div><pre><code class="language-text">K candidates -&gt; 1 user-level sample</code></pre></div>
+<p>用户侧的 <code>U/S/R</code> 只算一次。候选侧虽然仍有 K 个 token，但它们是在同一个 attention 序列里被处理。</p>
+<p>这带来两层收益：</p>
+<ol><li>训练样本数量大幅减少，重复用户特征计算减少。</li><li>推理时对一个 request 只做一次模型前向，输出所有候选分数。</li></ol>
+<p>这和 PinRec 的 multi-token 有点类似：都是用一次较重计算换多个结果。但 PinRec 一次生成多个 future embeddings；MTGR 一次输出多个 candidate logits。</p>
+<h3>11. 训练系统：<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=TorchRec&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiJUb3JjaFJlYyIsInpoaWRhX3NvdXJjZSI6ImVudGl0eSIsImNvbnRlbnRfaWQiOjI3NTg0MDQ3OCwiY29udGVudF90eXBlIjoiQXJ0aWNsZSIsIm1hdGNoX29yZGVyIjoxLCJ6ZF90b2tlbiI6bnVsbH0.sOIqm1OR5LSa6WKk2a0zpmNsn90u_mgdj3s16Im58nI&amp;zhida_source=entity" target="_blank" rel="noreferrer">TorchRec</a></span> 优化</h3>
+<p>MTGR 不是一个小模型。论文里 MTGR-large 的单样本前向是 55.76 GFLOPs，而 <span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=UserTower-SIM&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiJVc2VyVG93ZXItU0lNIiwiemhpZGFfc291cmNlIjoiZW50aXR5IiwiY29udGVudF9pZCI6Mjc1ODQwNDc4LCJjb250ZW50X3R5cGUiOiJBcnRpY2xlIiwibWF0Y2hfb3JkZXIiOjEsInpkX3Rva2VuIjpudWxsfQ.OnkvHKjwOIyOuVuZMTprN7sPYWBKSJpLRkWNXuWQ_VM&amp;zhida_source=entity" target="_blank" rel="noreferrer">UserTower-SIM</a></span> 是 0.86 GFLOPs，相当于约 65 倍。</p>
+<p>要让它在工业数据上训练，框架优化是必须的。论文没有继续用美团原有 TensorFlow 框架，而是基于 PyTorch/TorchRec 重建训练系统，并做了多项优化。</p>
+<h3>11.1 Dynamic Hash Table</h3>
+<p>工业推荐有大量新用户、新 item、新稀疏 ID。静态 embedding table 有两个问题：</p>
+<ol><li>容量满了以后新 ID 无法实时分配。</li><li>为避免溢出预留过大空间，浪费内存。</li></ol>
+<p>MTGR 使用动态 hash table，把 key storage 和 value storage 解耦：</p>
+<div><pre><code class="language-text">key storage：key -&gt; pointer
+value storage：embedding vector + metadata</code></pre></div>
+<p>这样可以动态扩容，也能更高效地扫描和淘汰。</p>
+<h3>11.2 Embedding lookup 去重和通信优化</h3>
+<p>分布式推荐训练里，embedding lookup 和 all-to-all 通信非常重。MTGR 做了 embedding ID de-duplication，减少重复 ID 在设备之间传输，并支持自动 table merging。</p>
+<h3>11.3 Dynamic batch size 做负载均衡</h3>
+<p>用户行为长度是长尾分布。少数用户序列很长，多数用户序列很短。如果每个 GPU 固定 batch size，会出现计算负载不均。</p>
+<p>常见做法是 sequence packing，但 mask 复杂。MTGR 选择更直接的方法：根据输入序列实际长度动态调整每个 GPU 的 local batch size，让各 GPU 计算量接近。</p>
+<p>同时，在梯度聚合时按各 GPU batch size 加权，保持训练逻辑一致。</p>
+<h3>11.4 Pipeline 和 kernel 优化</h3>
+<p>MTGR 使用三个 stream：</p>
+<div><pre><code class="language-text">copy stream：CPU -&gt; GPU 数据拷贝
+dispatch stream：embedding lookup 和通信
+compute stream：forward/backward/update</code></pre></div>
+<p>三者流水并行，减少 I/O 等待。同时使用 bf16 mixed precision，并基于 cutlass 做专用 attention kernel。</p>
+<p>这些优化让框架相比 TorchRec 提升 <b>1.6x 到 2.4x training throughput</b>，并能在 100+ GPUs 上保持较好扩展性。</p>
+<p>这部分很工程，但很重要。没有训练系统优化，MTGR 的模型设计很难落地。</p>
+<h3>12. 实验设置</h3>
+<p>论文使用美团真实工业数据，而不是公开数据集。原因也很实际：公开数据集通常缺少工业排序里最关键的 cross features，无法体现 MTGR 的核心价值。</p>
+<p>离线数据规模：</p>
+<table><tbody><tr><th>Split</th><th>Users</th><th>Items</th><th>Exposure</th><th>Click</th><th>Purchases</th></tr><tr><td>Train</td><td>0.21B</td><td>4,302,391</td><td>23.74B</td><td>1.08B</td><td>0.18B</td></tr><tr><td>Test</td><td>3,021,198</td><td>3,141,997</td><td>76,855,608</td><td>4,545,386</td><td>769,534</td></tr></tbody></table>
+<p>离线任务：</p>
+<div><pre><code class="language-text">CTR
+CTCVR</code></pre></div>
+<p>离线指标：</p>
+<div><pre><code class="language-text">AUC
+GAUC</code></pre></div>
+<p>线上指标：</p>
+<div><pre><code class="language-text">PV_CTR
+UV_CTCVR</code></pre></div>
+<p>其中 UV_CTCVR 是业务增长最关键指标。</p>
+<h3>13. 整体效果：MTGR-small 已经超过最强 DLRM</h3>
+<p>论文对比了多个 DLRM baseline：</p>
+<div><pre><code class="language-text">DNN-SIM
+MoE-SIM
+MultiEmbed-SIM
+Wukong-SIM
+UserTower-SIM
+UserTower-E2E</code></pre></div>
+<p>其中 UserTower-SIM 是最强 DLRM baseline。</p>
+<p>主表结果：</p>
+<table><tbody><tr><th>Model</th><th>CTR AUC</th><th>CTR GAUC</th><th>CTCVR AUC</th><th>CTCVR GAUC</th></tr><tr><td>UserTower-SIM</td><td>0.7593</td><td>0.6792</td><td>0.8815</td><td>0.6550</td></tr><tr><td>MTGR-small</td><td>0.7631</td><td>0.6826</td><td>0.8840</td><td>0.6603</td></tr><tr><td>MTGR-medium</td><td>0.7645</td><td>0.6843</td><td>0.8849</td><td>0.6625</td></tr><tr><td>MTGR-large</td><td>0.7661</td><td>0.6865</td><td>0.8862</td><td>0.6646</td></tr></tbody></table>
+<p>可以看到，即使最小的 MTGR-small，也超过了最强 DLRM。随着模型从 small 到 medium 到 large，指标继续提升。</p>
+<p>论文还给出 MTGR-large 相比最强 DLRM 的相对提升：</p>
+<div><pre><code class="language-text">CTR AUC: +0.8956%
+CTR GAUC: +1.0748%
+CTCVR AUC: +0.4990%
+CTCVR GAUC: +1.4656%</code></pre></div>
+<p>在工业排序里，GAUC 提升尤其重要，因为它更关注同一用户内候选排序能力。</p>
+<h3>14. Cross features 消融</h3>
+<p>Table 4 是整篇文章最重要的实验之一。</p>
+<table><tbody><tr><th>Model</th><th>CTR AUC</th><th>CTR GAUC</th><th>CTCVR AUC</th><th>CTCVR GAUC</th></tr><tr><td>MTGR-small</td><td>0.7631</td><td>0.6826</td><td>0.8840</td><td>0.6603</td></tr><tr><td>w/o cross features</td><td>0.7495</td><td>0.6689</td><td>0.8736</td><td>0.6514</td></tr><tr><td>w/o GLN</td><td>0.7606</td><td>0.6809</td><td>0.8826</td><td>0.6585</td></tr><tr><td>w/o dynamic mask</td><td>0.7620</td><td>0.6810</td><td>0.8828</td><td>0.6587</td></tr></tbody></table>
+<p>去掉 cross features 后，CTCVR GAUC 从 0.6603 掉到 0.6514。</p>
+<p>这个下降非常大，甚至低于 UserTower-SIM 的 0.6550。也就是说：</p>
+<div><pre><code class="language-text">没有 cross features 的 MTGR-small，
+不仅失去 MTGR 的优势，
+甚至打不过最强 DLRM。</code></pre></div>
+<p>这证明了论文的核心观点：</p>
+<blockquote> 在真实工业<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E6%8E%A8%E8%8D%90%E7%B3%BB%E7%BB%9F&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLmjqjojZDns7vnu58iLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.ydvfAVZBHWYT2OoykpxZyLfqfswLQDw2XeGyBihG4I0&amp;zhida_source=entity" target="_blank" rel="noreferrer">推荐系统</a></span>里，cross features 不是可有可无的手工特征，而是排序效果的关键资产。</blockquote>
+<p>很多生成式推荐论文喜欢强调“端到端替代<span><a href="https://zhida.zhihu.com/search?content_id=275840478&amp;content_type=Article&amp;match_order=1&amp;q=%E7%89%B9%E5%BE%81%E5%B7%A5%E7%A8%8B&amp;zd_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ6aGlkYV9zZXJ2ZXIiLCJleHAiOjE3ODU1ODQzNjUsInEiOiLnibnlvoHlt6XnqIsiLCJ6aGlkYV9zb3VyY2UiOiJlbnRpdHkiLCJjb250ZW50X2lkIjoyNzU4NDA0NzgsImNvbnRlbnRfdHlwZSI6IkFydGljbGUiLCJtYXRjaF9vcmRlciI6MSwiemRfdG9rZW4iOm51bGx9.YRgx7FXS8b4Jn7CTh14sdFRpZ7kH7vfHpgP8ONuLU64&amp;zhida_source=entity" target="_blank" rel="noreferrer">特征工程</a></span>”。MTGR 的结论要冷静得多：至少在美团外卖这种高强度交易推荐场景里，丢掉 cross features 会造成巨大损失，模型规模无法简单补偿。</p>
+<h3>15. Scaling law：MTGR 的可扩展性证据</h3>
+<p>论文从三个维度看 MTGR 的 scaling：</p>
+<ol><li>HSTU block 数。</li><li><code>d_model</code>。</li><li>输入序列长度。</li></ol>
+<figure><div><img src="../assets/posts/mtgr-generative-recommendation/03.jpg" alt="MTGR：工业级生成式推荐框架 配图 3" loading="lazy" decoding="async"></div></figure>
+<p>Figure 3 显示，随着这些超参数增大，CTCVR GAUC 平滑提升。</p>
+<p>例如 sequence length 从 100 提升到 5000，模型效果持续变好。这说明 MTGR 能真正利用更长用户行为，而不是像很多传统 DLRM 那样长序列输入后难以消化。</p>
+<p>论文还画了 CTCVR GAUC gain 与 <code>log2(FLOPs)</code> 的关系，呈现 power-law 趋势。它要表达的是：</p>
+<div><pre><code class="language-text">在 MTGR 的数据重排和 HSTU 架构下，
+推荐 ranking model 可以像大模型一样从更多计算中持续获益。</code></pre></div>
+<p>但这里也要谨慎：这是在美团内部数据和特征体系上的 scaling 证据，不等同于 NLP 那种跨任务通用 scaling law。它更像是工业推荐 ranking 场景里的经验 scaling curve。</p>
+<h3>16. 线上实验：少训练数据也能超过两年 DLRM baseline</h3>
+<p>MTGR 在线部署在美团外卖平台，用 2% 流量做 A/B。实验每天覆盖百万级曝光。</p>
+<p>对比 baseline 是美团线上最先进 DLRM：UserTower-SIM，并且这个 DLRM 已经持续学习了 2 年。</p>
+<p>MTGR 则使用最近 6 个月数据训练。即便训练数据少于 DLRM，线上仍显著超过 baseline。</p>
+<p>Table 5：</p>
+<table><tbody><tr><th>Model</th><th>CTR GAUC diff</th><th>CTCVR GAUC diff</th><th>PV_CTR</th><th>UV_CTCVR</th></tr><tr><td>MTGR-small</td><td>+0.0036</td><td>+0.0154</td><td>+1.04%</td><td>+0.04%</td></tr><tr><td>MTGR-medium</td><td>+0.0071</td><td>+0.0182</td><td>+2.29%</td><td>+0.62%</td></tr><tr><td>MTGR-large</td><td>+0.0153</td><td>+0.0288</td><td>+1.90%</td><td>+1.02%</td></tr></tbody></table>
+<p>几个观察：</p>
+<ol><li>线上 UV_CTCVR 随模型规模提升，large 最好。</li><li>PV_CTR 上 medium 高于 large，但业务最关键的 UV_CTCVR 是 large 最好。</li><li>论文强调 CTCVR GAUC 上 large 的收益超过过去一年全部优化累计收益。</li></ol>
+<p>这说明 MTGR 不只是离线指标好，在线也能承接。</p>
+<h3>17. MTGR 推理成本</h3>
+<p>论文说 MTGR-large 的单样本 forward FLOPs 是 DLRM 的 65 倍，但训练成本和 DLRM 相当，推理成本还降低 12%。这听起来反直觉。</p>
+<p>关键在于“样本”的定义变了。</p>
+<p>传统 DLRM：</p>
+<div><pre><code class="language-text">一个样本 = 一个 user-candidate pair
+一个请求 K 个候选 = K 个样本</code></pre></div>
+<p>MTGR：</p>
+<div><pre><code class="language-text">一个样本 = 一个 user request + K 个 candidate tokens
+一个请求 K 个候选 = 1 个样本</code></pre></div>
+<p>所以虽然 MTGR 单样本更重，但它一次处理整个候选集，避免了 K 次重复用户侧计算。</p>
+<p>更直观地说：</p>
+<div><pre><code class="language-text">DLRM 是轻模型重复跑很多次
+MTGR 是重模型一次跑出很多候选分数</code></pre></div>
+<p>当候选数较大、用户侧长序列较重时，后者反而更有成本优势。</p>
+<h3>18. MTGR 的真正贡献</h3>
+<p>第一，它指出纯 GRM 在工业 ranking 中的一个硬伤：丢 cross features 会伤害效果，而且扩大模型不能补偿。</p>
+<p>第二，它提出 user sample aggregation，把同一用户请求下的多个候选合并成一个 token 序列，从而把推理成本从 candidate-level 重复计算改成 request-level 一次计算。</p>
+<p>第三，它设计了适合异构推荐 token 的 GLN 和 dynamic masking，让用户特征、历史序列、实时行为、候选特征和 cross features 能在同一 HSTU 中安全交互。</p>
+<p>第四，它给出完整训练系统优化，证明 65x 单样本 FLOPs 的排序模型可以在工业系统中训练和上线。</p>
+<blockquote> 推荐模型 scaling 不一定意味着抛弃传统特征工程。更现实的路线可能是把传统特征体系 token 化、序列化，再接入大规模 attention 架构。</blockquote>
+<h3>20. 局限</h3>
+<h3>20.1 并非型生成式推荐</h3>
+<p>MTGR 虽然叫 Generative Recommendation Framework，但它不做 next item generation，也不生成 semantic ID。它更像是生成式推荐启发下的 scalable ranking model。</p>
+<h3>20.2 对 cross features 的依赖很强</h3>
+<p>MTGR 的优势高度依赖美团成熟的 cross feature 工程。如果一个系统没有强 cross features，MTGR 相比其他 GRM 的优势可能会变小。</p>
+<h3>20.3 候选间 mask 设计可能影响表达能力</h3>
+<p>论文让 candidate tokens 只看自己，避免候选间信息泄漏。但这也意味着模型没有充分建模候选间相对关系。对于需要 listwise reranking 的场景，候选之间的交互可能是有价值的。</p>
+<h3>20.4 Scaling law 仍是场景内经验</h3>
+<p>论文展示了 FLOPs 与 CTCVR GAUC gain 的 power-law 趋势，但这是在特定业务、数据、特征和模型范围内得到的。是否能外推到其他推荐场景，还需要更多证据。</p>
+<h3>21. 总结</h3>
+<p>MTGR 没有追逐“完全生成 item”的路线，而是回到美团外卖排序系统的真实问题：</p>
+<div><pre><code class="language-text">DLRM 特征强但不好 scale；
+GRM 好 scale 但容易丢 cross features；
+能不能两者都要？</code></pre></div>
+<p>MTGR 的答案是：</p>
+<div><pre><code class="language-text">把同一用户请求下的候选聚合成 token 序列，
+保留 DLRM 的全部特征和 cross features，
+用 HSTU + GLN + dynamic mask 做统一建模，
+再通过训练系统优化把大 FLOPs 模型真正上线。</code></pre></div>
+<p>工业推荐的 scaling 不是简单把 LLM 或 generative retrieval 套上去，而是要尊重已有系统里真正有效的特征资产。MTGR 的价值就在于，它把传统推荐的 cross feature 工程和生成式序列模型的扩展能力接到了一起。</p></div><div class="article-end"><p>继续探索生成式推荐与智能系统。</p><a class="arrow-link" href="../writing.html">全部文章 <span>→</span></a></div>
     </article>
   </main>
   <footer class="site-footer wrap"><div><a class="wordmark" href="../">克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../publications.html">论文</a><a href="../about.html">履历</a><a href="mailto:zzx_anthony@163.com">Email</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>
