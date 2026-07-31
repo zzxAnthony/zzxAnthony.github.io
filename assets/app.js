@@ -95,19 +95,57 @@ const articleShell = document.querySelector('.article-shell');
 if (articleBody && articleShell) {
   const headings = [...articleBody.querySelectorAll('h2, h3')];
   if (headings.length >= 3) {
+    const inferTocLevel = (heading) => {
+      const text = heading.textContent.replace(/\s+/g, ' ').trim();
+      const numbered = text.match(/^(\d+(?:\.\d+)*)(?=[\s、.．：:）)]|$)/);
+      if (numbered) return Math.min(numbered[1].split('.').length, 3);
+      if (/^[一二三四五六七八九十百]+[、.．]/.test(text)) return 1;
+      if (/^[（(](?:\d+|[一二三四五六七八九十百]+)[）)]/.test(text)) return 2;
+      return heading.tagName === 'H2' ? 1 : 2;
+    };
+
+    const rawLevels = headings.map(inferTocLevel);
+    const levelOffset = Math.max(0, Math.min(...rawLevels) - 1);
     const toc = document.createElement('nav');
     toc.className = 'article-toc';
     toc.setAttribute('aria-label', '文章目录');
     const title = document.createElement('strong');
     title.textContent = '文章目录';
     toc.append(title);
+    const rootList = document.createElement('ol');
+    rootList.className = 'toc-list';
+    toc.append(rootList);
+    const listStack = [{ list: rootList, lastItem: null }];
+    let previousLevel = 1;
+
     headings.forEach((heading, index) => {
       heading.id ||= `section-${index + 1}`;
+      let level = Math.max(1, Math.min(rawLevels[index] - levelOffset, 3));
+      level = Math.min(level, previousLevel + 1);
+
+      while (listStack.length < level) {
+        const parent = listStack[listStack.length - 1];
+        if (!parent.lastItem) {
+          level = listStack.length;
+          break;
+        }
+        const nestedList = document.createElement('ol');
+        nestedList.className = `toc-list toc-list-level-${listStack.length + 1}`;
+        parent.lastItem.append(nestedList);
+        listStack.push({ list: nestedList, lastItem: null });
+      }
+      while (listStack.length > level) listStack.pop();
+
+      const item = document.createElement('li');
       const link = document.createElement('a');
       link.href = `#${heading.id}`;
       link.textContent = heading.textContent;
-      if (heading.tagName === 'H3') link.className = 'toc-h3';
-      toc.append(link);
+      link.className = `toc-link toc-level-${level}`;
+      item.append(link);
+      const current = listStack[listStack.length - 1];
+      current.list.append(item);
+      current.lastItem = item;
+      previousLevel = level;
     });
     document.body.append(toc);
   }
