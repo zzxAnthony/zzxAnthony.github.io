@@ -43,6 +43,52 @@ document.querySelector('.theme-toggle')?.addEventListener('click', () => {
 
 document.querySelector('#year')?.replaceChildren(String(new Date().getFullYear()));
 
+const dailyQuote = document.querySelector('[data-daily-quote]');
+if (dailyQuote) {
+  const quotes = [
+    ['樱花树下站谁都美，我的爱给谁都热烈。', '关于喜欢'],
+    ['喜欢不是一道证明题，答案写在见面时的眼睛里。', '关于喜欢'],
+    ['有些人适合收藏在晚风里，不一定要写进结局。', '关于告别'],
+    ['心动是短暂的天气，认真才是长久的气候。', '关于感情'],
+    ['你不用很特别，我喜欢的时候，你就是唯一的例外。', '关于喜欢'],
+    ['见面吧，很多话隔着屏幕会变轻。', '关于想念'],
+    ['别急着把故事写完，晚一点也许会有新的章节。', '关于生活'],
+    ['长大不是不期待，是学会一边失望，一边种花。', '关于成长'],
+    ['今天学不完也没关系，先比昨天多懂一点。', '关于学习'],
+    ['把不会的题留在纸上，别留在自我怀疑里。', '关于学习'],
+    ['不是每次努力都有掌声，但每次认真都算数。', '关于努力'],
+    ['慢一点没关系，方向对了，散步也是前进。', '关于成长'],
+    ['学习不是为了赢过所有人，是为了看见更大的世界。', '关于学习'],
+    ['很多答案不是想出来的，是做着做着长出来的。', '关于行动'],
+    ['天赋偶尔发光，习惯负责天亮。', '关于坚持'],
+    ['困的时候先睡觉，醒来再和世界讲道理。', '关于生活'],
+    ['生活偶尔卡顿，不代表你的人生加载失败。', '关于生活'],
+    ['风吹乱计划，也可能把你吹到更好的地方。', '关于意外'],
+    ['可以敏感，也可以勇敢，这两件事并不冲突。', '关于自己'],
+    ['没有白走的路，只是有些风景后来才看懂。', '关于成长'],
+    ['今天也普通得很好，平静本身就是礼物。', '关于日常'],
+    ['允许自己暂时没有答案。', '关于自己'],
+    ['不必每次都满分，留一点空白给明天。', '关于学习'],
+    ['喜欢春天的人，也要允许花慢一点开。', '关于等待'],
+  ];
+  const today = new Date();
+  const dateKey = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+  let seed = 2166136261;
+  for (const character of dateKey) {
+    seed ^= character.charCodeAt(0);
+    seed = Math.imul(seed, 16777619);
+  }
+  const [text, topic] = quotes[(seed >>> 0) % quotes.length];
+  const dateLabel = `${String(today.getMonth() + 1).padStart(2, '0')} / ${String(today.getDate()).padStart(2, '0')}`;
+  const quoteDate = document.querySelector('[data-quote-date]');
+  dailyQuote.textContent = text;
+  document.querySelector('[data-quote-topic]')?.replaceChildren(topic);
+  if (quoteDate) {
+    quoteDate.dateTime = dateKey;
+    quoteDate.textContent = dateLabel;
+  }
+}
+
 const progress = document.querySelector('.reading-progress');
 if (progress) {
   const updateProgress = () => {

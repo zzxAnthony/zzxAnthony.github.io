@@ -193,6 +193,16 @@ button{color:inherit}
 .magazine-strip>div:nth-child(2){display:grid}.magazine-strip span{font:750 10px var(--mono);letter-spacing:.15em;color:var(--primary-dark)}
 .magazine-strip strong{font-size:19px}.magazine-strip p{z-index:1;margin:0;color:var(--muted);font:700 10px var(--mono);letter-spacing:.1em}
 
+.daily-quote{position:relative;isolation:isolate;display:grid;grid-template-columns:136px minmax(0,1fr) 150px;align-items:center;gap:30px;min-height:220px;margin:0 0 30px;padding:28px 34px;overflow:hidden;background:linear-gradient(132deg,color-mix(in srgb,var(--paper) 96%,var(--primary-soft)),color-mix(in srgb,var(--primary-soft) 48%,var(--paper)) 58%,color-mix(in srgb,var(--cyan-soft) 58%,var(--paper)));border-color:color-mix(in srgb,var(--primary) 19%,var(--line))}
+.daily-quote:before{content:"";position:absolute;z-index:-1;left:40%;bottom:-95px;width:260px;height:180px;border:1px dashed color-mix(in srgb,var(--primary) 27%,transparent);border-radius:50%;transform:rotate(-12deg)}
+.daily-quote:after{content:"“";position:absolute;z-index:-1;right:174px;top:-35px;color:color-mix(in srgb,var(--primary) 9%,transparent);font:180px/.95 var(--serif)}
+.quote-date-card{position:relative;display:grid;place-items:center;align-content:center;width:126px;height:148px;padding:20px 12px;border:1px solid color-mix(in srgb,var(--primary) 24%,var(--line));border-radius:18px;background:color-mix(in srgb,var(--paper) 92%,transparent);box-shadow:0 12px 24px rgba(67,45,51,.1),inset 0 1px rgba(255,255,255,.8);transform:rotate(-2.5deg)}
+.quote-date-card:before{content:"";position:absolute;left:50%;top:-9px;width:62px;height:18px;background:rgba(255,226,168,.7);box-shadow:0 2px 4px rgba(74,54,40,.09);transform:translateX(-50%) rotate(3deg)}
+.quote-date-card span{color:var(--primary-dark);font:800 10px var(--mono);letter-spacing:.12em}.quote-date-card time{margin:8px 0 3px;color:var(--ink);font:850 25px/1 var(--mono);letter-spacing:-.06em}.quote-date-card small{color:var(--muted);font-size:12px;font-weight:650}
+.quote-copy{min-width:0;padding:8px 0}.quote-copy blockquote{margin:10px 0 18px}.quote-copy blockquote p{margin:0;font:400 clamp(23px,2.35vw,34px)/1.62 var(--serif);letter-spacing:.015em;text-wrap:balance}.quote-copy footer{display:flex;align-items:center;gap:12px}.quote-copy footer span{padding:5px 10px;border:1px solid color-mix(in srgb,var(--primary) 22%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--paper) 76%,transparent);color:var(--primary-dark);font-size:12px;font-weight:750;box-shadow:var(--inset)}.quote-copy footer small{color:var(--muted);font-size:12px}
+.quote-charm{position:relative;display:grid;place-items:center;width:118px;height:118px;justify-self:end;border:1px solid color-mix(in srgb,var(--primary) 20%,var(--line));border-radius:38% 62% 54% 46% / 46% 40% 60% 54%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.8) 0 3px,transparent 4px),linear-gradient(145deg,var(--primary-soft),var(--cyan-soft));box-shadow:0 12px 25px rgba(67,45,51,.1),inset 0 1px rgba(255,255,255,.82);transform:rotate(4deg)}
+.quote-charm i{position:absolute;width:50px;height:50px;border:9px solid color-mix(in srgb,var(--primary) 34%,transparent);border-radius:50%;opacity:.55}.quote-charm b{z-index:1;color:var(--ink);font:750 11px/1.45 var(--sans);text-align:center;letter-spacing:.08em}.quote-charm span{position:absolute;right:7px;top:5px;color:var(--primary);font-size:18px;animation:pulse 2.4s ease-in-out infinite}
+
 /* Feed and sidebar */
 .content-grid{display:grid;grid-template-columns:286px minmax(0,1fr);gap:22px;padding-bottom:78px}
 .sidebar{position:sticky;top:92px;align-self:start;display:grid;gap:15px}
@@ -378,6 +388,7 @@ button{color:inherit}
 @media(max-width:940px){
   .topbar nav a{padding-inline:10px}
   .hero-grid{grid-template-columns:1fr}.profile-card{max-width:540px;width:100%;justify-self:center}
+  .daily-quote{grid-template-columns:122px minmax(0,1fr);gap:24px}.quote-charm{display:none}
   .content-grid{grid-template-columns:1fr}.sidebar{position:static;grid-template-columns:1fr 1fr}.contact-widget{display:none}
   .featured-post{grid-template-columns:280px 1fr}.post-grid{grid-template-columns:1fr 1fr}
   .compact-head{grid-template-columns:1fr}.archive-item{grid-template-columns:235px 1fr}
@@ -396,6 +407,7 @@ button{color:inherit}
   .site-shell,.wrap{width:calc(100% - 24px)}.wrap{padding-bottom:40px}
   .hero-grid{padding-top:12px}.hero-copy{min-height:490px;padding:43px 25px 120px}.hero-copy:before{right:-12px;top:24px;font-size:55px}.hero-copy h1{font-size:74px}.hero-role{font-size:18px}.hero-summary{font-size:16px}.manga-note{right:24px;bottom:26px}
   .profile-card{padding-inline:20px}.magazine-strip{grid-template-columns:52px 1fr;padding:14px 16px}.strip-index{width:50px;height:50px}.magazine-strip p{display:none}.magazine-strip strong{font-size:16px}
+  .daily-quote{grid-template-columns:1fr;gap:18px;min-height:0;padding:25px}.quote-date-card{grid-template-columns:auto auto auto;gap:8px;place-items:center;width:auto;height:auto;justify-self:start;padding:10px 14px;transform:rotate(-1deg)}.quote-date-card:before{display:none}.quote-date-card time{margin:0;font-size:18px}.quote-copy{padding:0}.quote-copy blockquote{margin:7px 0 15px}.quote-copy blockquote p{font-size:23px;line-height:1.65}.quote-copy footer{align-items:flex-start;flex-direction:column;gap:7px}
   .sidebar{grid-template-columns:1fr}.feed-heading h2{font-size:28px}
   .featured-post{grid-template-columns:1fr}.featured-post .post-cover{min-height:250px}.post-grid{grid-template-columns:1fr}.post-grid .post-card{grid-template-rows:200px 1fr;min-height:0}.post-copy{padding:22px}.post-copy h3,.post-grid .post-copy h3{font-size:21px}
   .research-grid{grid-template-columns:1fr}.research-card{grid-template-columns:65px 1fr;padding:21px}.research-orb{width:58px;height:58px}.publications-preview{align-items:flex-start;flex-direction:column;padding:25px}
