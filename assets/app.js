@@ -6,6 +6,14 @@ const pageIsPost = location.pathname.includes('/posts/');
 const pagePrefix = pageIsPost ? '../' : '';
 
 // Keep the global navigation consistent on legacy article pages.
+const navigationIcons = new Map([
+  ['首页', '⌂'],
+  ['文章', '✎'],
+  ['研究', '◉'],
+  ['论文', '▤'],
+  ['履历', '◇'],
+]);
+
 document.querySelectorAll('.topbar nav').forEach((nav) => {
   if (!nav.querySelector('a[href$="research.html"]')) {
     const link = document.createElement('a');
@@ -14,6 +22,10 @@ document.querySelectorAll('.topbar nav').forEach((nav) => {
     const writingLink = nav.querySelector('a[href$="writing.html"]');
     writingLink?.after(link);
   }
+  nav.classList.add('nav-dock');
+  nav.querySelectorAll('a').forEach((link) => {
+    link.dataset.icon = navigationIcons.get(link.textContent.trim()) || '✦';
+  });
 });
 
 document.querySelectorAll('.footer-links').forEach((links) => {
@@ -35,6 +47,13 @@ document.querySelectorAll('.wordmark').forEach((wordmark) => {
     wordmark.prepend(spark);
   }
 });
+
+const topbar = document.querySelector('.topbar');
+if (topbar) {
+  const updateTopbar = () => topbar.classList.toggle('is-scrolled', scrollY > 28);
+  addEventListener('scroll', updateTopbar, { passive: true });
+  updateTopbar();
+}
 
 document.querySelector('.theme-toggle')?.addEventListener('click', () => {
   root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -70,7 +89,7 @@ if (dailyQuote) {
     ['允许自己暂时没有答案。', '关于自己'],
     ['不必每次都满分，留一点空白给明天。', '关于学习'],
     ['喜欢春天的人，也要允许花慢一点开。', '关于等待'],
-    ['喜欢一个人以后，连路过他常去的地方，都像绕了远路去见面。', '关于喜欢'],
+    ['喜欢一个人以后，连路过她常去的地方，都像绕了远路去见面。', '关于喜欢'],
     ['我不是突然想你，只是风把一些旧画面吹了回来。', '关于想念'],
     ['爱意不一定要惊天动地，记得你不吃什么也算。', '关于感情'],
     ['如果想见面，就别把想念只写在聊天框里。', '关于想念'],
