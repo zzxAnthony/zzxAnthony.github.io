@@ -36,8 +36,6 @@ This site uses or adapts the following third-party resources.
   - License: CC0-1.0
 - Baidu icon: https://github.com/simple-icons/simple-icons/blob/develop/icons/baidu.svg
   - License: CC0-1.0
-- Meituan icon: https://github.com/simple-icons/simple-icons/blob/develop/icons/meituan.svg
-  - License: CC0-1.0
 - Lecheng Software Studio logo: supplied by the site owner.
 
 The institutional marks are shown only to identify the author's education and internship experience. They are not used to imply endorsement.
