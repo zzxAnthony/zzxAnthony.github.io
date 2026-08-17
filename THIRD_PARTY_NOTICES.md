@@ -32,6 +32,7 @@ This site uses or adapts the following third-party resources.
 - Southwest Petroleum University identity system: https://www.swpu.edu.cn/sdwh/bsxt.htm
 - Meituan official media resources: https://www.meituan.com/media
 - Baidu official brand identity system: https://bdvi.honglei.net/
+- TikTok brand mark: https://www.citypng.com/photo/437/tik-tok-logo-transparent-square
 - Lecheng Software Studio logo: supplied by the site owner.
 
 The institutional marks are shown only to identify the author's education and internship experience. They are not used to imply endorsement.
