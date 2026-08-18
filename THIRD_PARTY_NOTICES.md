@@ -32,7 +32,7 @@ This site uses or adapts the following third-party resources.
 - Southwest Petroleum University identity system: https://www.swpu.edu.cn/sdwh/bsxt.htm
 - Meituan official media resources: https://www.meituan.com/media
 - Baidu official brand identity system: https://bdvi.honglei.net/
-- TikTok icon: https://github.com/simple-icons/simple-icons/blob/develop/icons/tiktok.svg
+- ByteDance icon: https://github.com/simple-icons/simple-icons/blob/develop/icons/bytedance.svg
   - License: CC0-1.0
 - Baidu icon: https://github.com/simple-icons/simple-icons/blob/develop/icons/baidu.svg
   - License: CC0-1.0
