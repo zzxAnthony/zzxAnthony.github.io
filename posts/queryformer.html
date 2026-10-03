@@ -1,171 +1,33 @@
-<!doctype html>
-<html lang="zh-CN" data-theme="light">
+<!DOCTYPE html>
+
+<html data-theme="light" lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="解读 TAAC 2026 / KDD Cup Tencent UniRec Challenge 工业赛道冠军方案 QueryFormer，分析候选感知、上下文选择与 Query 建模。">
-  <meta name="author" content="克西">
-  <title>TAAC工业界冠军方案QueryFormer解读 — 克西</title>
-  <link rel="icon" href="../assets/favicon.png" type="image/png">
-  <link rel="stylesheet" href="../assets/styles.css?v=20261003-1">
-  <script src="../assets/app.js?v=20261003-1" defer></script>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="解读 TAAC 2026 / KDD Cup Tencent UniRec Challenge 工业赛道冠军方案 QueryFormer，分析候选感知、上下文选择与 Query 建模。" name="description"/>
+<meta content="克西" name="author"/>
+<title>TAAC工业界冠军方案QueryFormer解读 — 克西</title>
+<link href="../assets/favicon.png" rel="icon" type="image/png"/>
+<link href="../assets/styles.css?v=20261003-1" rel="stylesheet"/>
+<script defer="" src="../assets/app.js?v=20261003-1"></script>
 </head>
 <body>
-  <div class="reading-progress"></div>
-  <header class="topbar"><a class="wordmark" href="../"><span class="wordmark-spark">✦</span>克西<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a href="../writing.html" aria-current="page">文章</a><a href="../research.html">研究</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" target="_blank" rel="noreferrer">GitHub ↗</a><button class="theme-toggle" aria-label="切换明暗主题">◐</button></div></header>
-  <main class="article-shell">
-    <a class="article-back" href="../writing.html">← 返回文章</a>
-    <article>
-      <header class="article-header">
-        <p class="eyebrow">TECHNICAL NOTE / 推荐系统</p>
-        <h1>TAAC工业界冠军方案QueryFormer解读</h1>
-        <p class="lead">从候选感知、行为域背景与上下文选择出发，分析 QueryFormer 如何形成更高质量的 Query。</p>
-        <div class="article-meta"><span>推荐系统</span><span>克西</span><time datetime="2026-10-02">2026.10.02</time><span>18 MIN READ</span></div>
-        <a class="source-link" href="https://zhuanlan.zhihu.com/p/2089458009718240022" target="_blank" rel="noreferrer">知乎原文 ↗</a>
-      </header>
-      <div class="article-body"><p>长序列推荐常把改进重点放在历史一侧：保留更多行为、增强序列编码器、堆叠更多层。QueryFormer 提出了另一个问题：<strong>历史里即使有足够的信息，负责读取它的 Query 是否已经知道该找什么？</strong></p>
-<p>这篇 TAAC 2026 / KDD Cup Tencent UniRec Challenge 工业赛道冠军方案，正式测试 AUC 为 0.83254。它的核心不是新增一种复杂的序列编码器，而是让查询生成经历三个步骤：用户与候选先交互，候选先取一份相关历史，再由行为域背景选择上下文，形成最终查询。下面重点分析这条路径为什么有用、实验支持到哪一步，以及额外预算应该花在哪里。<a href="https://arxiv.org/html/2609.16548v1">原论文 §4–5</a></p>
-<p><img loading="lazy" decoding="async" alt="原论文图 1：QueryFormer 整体架构" src="../assets/posts/queryformer/01.png" /></p>
-<p><em>原论文图 1。左侧先更新用户／物品字段，右侧用行为初始化的探针读取扩充上下文；生成的 Query 再进入中间的轻量处理块。前面的查询生成桥接模块，与后面重复的 K 个块不是同一层级。</em></p>
-<h2>一、已有方案不缺上下文，缺的是怎样使用它</h2>
-<p>理解 QueryFormer，先要避免把它的对手描述得过于简单。<a href="https://arxiv.org/html/2601.12681v1">HyFormer</a> 已经将非序列字段与池化历史拼接，经 FFN 生成多个 Query；随后查询读取长序列，与字段做 token mixing，再进入下一层。它既不是“只用候选向量做 Query”，也不是一次聚合后就结束。</p>
-<p>因此，QueryFormer 要解决的不是“给查询加入上下文”这么宽泛的问题，而是：<strong>同一份上下文，能否用更合适的结构转化为读取条件？</strong></p>
-<p>拼接 MLP 当然可以学习非线性关系，但各字段先被放入固定布局，再整体映射为 Query。QueryFormer 保留字段的 token 形态，让行为初始化的探针显式选择上下文。这是一种不同的归纳偏置：把“哪些条件对这次读取重要”放进可学习的匹配过程，而不只依赖整体投影。</p>
-<p>更关键的是，被选择的上下文也经过了重构。它不再只是原始用户、物品字段，还包含双方交互后的表示，以及当前候选检索出的历史摘要。<strong>输入条件的改善与查询生成方式的改善，是这篇方案的两个相互衔接的部分。</strong></p>
-<h2>二、三步查询生成，各自补齐什么条件</h2>
-<h3>1. Co-Transformer：检索前，先让候选表示与用户有关</h3>
-<p>假设用户既浏览运动用品，也浏览数码产品，当前候选是一双较贵的跑鞋。这个例子只是帮助理解信息流：商品的价格、类目和品牌描述的是商品本身；它们与用户消费能力、既有偏好结合后，才更接近“这件商品对这个用户意味着什么”。</p>
-<p>Co-Transformer 用两层结构完成这一步。每层先分别整理用户字段内部、物品字段内部的关系，再做双方的交叉注意力，以门控融合结果。组内 self-attention 处理同侧字段如何共同表达语义，跨侧 cross-attention 则让表示带上另一侧的条件。</p>
-<p>它的位置比“用了 attention”更值得关注：<strong>交互发生在历史检索之前。</strong> 后面发起检索的是更新后的物品表示，而不是尚未结合用户信息的候选字段。这样，字段交互不仅服务最终预测，还参与决定从历史中取什么。</p>
-<p>对应的消融下降分别是 0.00020 和 0.00029。两者支持了字段整理与跨侧交互的有效性，后者影响更大。不过，实验没有区分这部分收益究竟经由检索路径还是最终字段表示产生，不宜把路径解释写成已证明的因果分解。（原文 §4.2.3、表 4）</p>
-<h3>2. QuerySeqCrossAttn：先找到线索，为什么还要再读历史？</h3>
-<p>用户总体兴趣与当前候选所需的证据不是一回事。继续上面的例子，面对跑鞋候选，模型需要运动用品相关的行为线索，而不只是数码与运动兴趣混在一起的全局摘要。</p>
-<p>QuerySeqCrossAttn 用更新后的物品 token 聚合作为查询，分别读取四个行为域；每域得到一个候选相关摘要。这四个摘要被追加到非序列上下文中，与用户、物品等字段一起形成 26 个 token。</p>
-<p>这看起来已经完成了兴趣聚合，为什么还要生成 Query，再读一次历史？因为两次读取的职责不同。<strong>第一次读取得到的是候选相关线索，用来改善下一步的读取条件；后续读取则利用更完整的条件，获取用于预测的序列表示。</strong> 前者不是后者的替代品，而是查询形成的输入。</p>
-<p>这种设计把历史从“等待被读取的对象”变成“帮助决定如何读取的证据”。删除该模块，AUC 下降 0.00023，说明这份摘要在完整结构里有用。但原文没有比较“摘要只进入预测”与“摘要还参与查询生成”，因此还不能断言收益全部来自反馈路径。（原文 §4.2.4、表 4）</p>
-<h3>3. SeqQueryCrossAttn：由行为域决定，该关注哪些上下文</h3>
-<p>两个模块名称相近，方向却不同：上一模块是<strong>候选读取历史</strong>，这一模块是<strong>行为初始化的探针读取上下文</strong>。</p>
-<p>每个行为域用 mean/max 池化摘要和初始化 FFN 构造两个探针，再让探针对扩充上下文做 cross-attention。用一个式子概括：</p>
-<p><span class="math-display">\[q_{s,k}=\operatorname{CrossAttn}_{s}\big(q^{(0)}_{s,k},\widetilde N,\widetilde N\big),\qquad k=1,2.\]</span></p>
-<p>其中，初始探针提供行为域背景，扩充上下文提供用户、候选及初步检索证据。行为域不同、候选不同，匹配权重也可以不同。它不预设某个字段始终重要，而是让每次查询形成时重新选择条件。四域共生成八个 Query，随后进入序列读取与 token 混合。</p>
-<p>这里有一个容易忽略的设计理由：探针不是直接从候选出发，而是从各域行为摘要出发。候选相关信息已经放进上下文；现在由不同的行为域去选择这些信息，相当于让“域背景”和“当前匹配条件”共同决定读取方向，而不要求所有历史共享同一个候选表示。这是对结构的解释，并不意味着论文已经证明两个探针具有明确的兴趣分工。</p>
-<p>它也没有神奇地恢复池化丢失的信息。池化仍是初始化的压缩瓶颈，但最终预测并不只依赖这个摘要：新 Query 还会回到保留的序列 token 中读取证据。<strong>摘要负责形成读取条件，序列负责提供细粒度信息。</strong> 两者分工，才使“先压缩，再读取”不等于只用池化做预测。（原文 §4.2.5、图 1）</p>
-<h2>三、消融支持核心判断，但不是收益分账表</h2>
-<p>先看总体比较。在优化后的训练配方下，默认 QueryFormer 的验证 AUC 为 0.84606，HyFormer 为 0.84477；前者高 0.00129，稠密参数由 105.8M 降至 87.1M。这说明完整架构在报告的配置中更有效，但不能把全部差值归给 attention 查询生成。（原文表 3）</p>
-<p>以下消融固定 H=4、d=272、K=2，训练四轮，报告最佳验证 AUC。数据采用 Round 2 的 90/10 Row-Group 划分，每域保留最近 256 个行为位置；这些数值不是正式测试集结果，也不是严格时间切分的验证结论。</p>
-<table>
-<thead>
-<tr>
-<th>改动</th>
-<th style="text-align: right;">最佳 Val AUC</th>
-<th style="text-align: right;">相对完整模型下降</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>完整模型</td>
-<td style="text-align: right;">0.84606</td>
-<td style="text-align: right;">—</td>
-</tr>
-<tr>
-<td>attention 生成 Query 改为 MLP</td>
-<td style="text-align: right;">0.84568</td>
-<td style="text-align: right;">0.00038</td>
-</tr>
-<tr>
-<td>删除用户／物品交叉注意力</td>
-<td style="text-align: right;">0.84577</td>
-<td style="text-align: right;">0.00029</td>
-</tr>
-<tr>
-<td>删除候选相关历史检索</td>
-<td style="text-align: right;">0.84583</td>
-<td style="text-align: right;">0.00023</td>
-</tr>
-<tr>
-<td>删除组内自注意力</td>
-<td style="text-align: right;">0.84586</td>
-<td style="text-align: right;">0.00020</td>
-</tr>
-<tr>
-<td>同时删除四种机制</td>
-<td style="text-align: right;">0.84496</td>
-<td style="text-align: right;">0.00110</td>
-</tr>
-</tbody>
-</table>
-<p><em>数值整理自原论文表 4，均为 AUC 绝对差值。</em></p>
-<p>这组结果回答了两个不同的问题。第一，查询生成并非无关紧要的入口层：替换为 MLP 造成最大单项下降，是核心改动最直接的证据。第二，前面的条件准备也有价值：在这组配置中，保留用户物品交互与候选检索都能改善效果。</p>
-<p>但它没有证明模块可以独立“分账”。每个单项消融都从完整模型出发，衡量的是其他模块存在时的边际影响。即使四项下降之和恰好等于同时删除的下降，也不能据此认定收益彼此独立；缺少组合消融，仍不知道哪些模块互相增强、哪些功能部分重叠。</p>
-<p><img loading="lazy" decoding="async" alt="原论文图 4：四项注意力机制的逐轮消融" src="../assets/posts/queryformer/02.png" /></p>
-<p><em>原论文图 4。最值得细看的是 (a)：MLP 查询生成在前三轮略占优，attention 版本在第四轮取得更高最佳值。其余子图分别检查历史检索、跨侧交互和组内自注意力。</em></p>
-<p>曲线让结论比单个数字更具体：attention 的优势表现为该训练协议下更高的最终最佳效果，而不是从训练开始就更好。如果训练预算很短，仅凭“最大消融下降”就优先替换查询生成，未必得到同样结果。原文也没有给出充分的参数匹配细节或多种子区间，所以更稳妥的结论是：<strong>这种显式上下文选择值得验证，而不是 attention 普遍胜过 MLP。</strong></p>
-<h2>四、多视角扩展：有效，不代表继续加 H 最划算</h2>
-<p>前面解决的是信息怎么流动，多视角解决的是用多少表示容量。QueryFormer 对同一输入建立 H 条独立 token 化路径，形成 (batch,H,T,d) 的表示；H 不是 attention head 数，也不是把同一份 embedding 复制 H 次。</p>
-<p>独立路径让同一组异质字段与行为关系能够进入不同的表示空间。这个动机类似于避免所有关系挤在单一表示里，但“视角互补”仍是解释：论文没有展示各视角的语义分工，也没有用去相关实验隔离互补性与参数增大的作用。</p>
-<p><img loading="lazy" decoding="async" alt="原论文图 3：不同视角数的验证 AUC 与 LogLoss" src="../assets/posts/queryformer/03.png" /></p>
-<p><em>原论文图 3。在 d=272 下增加 H，最终 AUC 与 LogLoss 都改善。曲线回答“扩展是否有效”，还不能单独回答“值不值得”。</em></p>
-<p>把成本放回来，结论就清楚得多：</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: right;">H</th>
-<th style="text-align: right;">Val AUC</th>
-<th style="text-align: right;">稠密参数 M</th>
-<th style="text-align: right;">批量均摊评估时间 μs/样本</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: right;">1</td>
-<td style="text-align: right;">0.84540</td>
-<td style="text-align: right;">50</td>
-<td style="text-align: right;">31.1</td>
-</tr>
-<tr>
-<td style="text-align: right;">2</td>
-<td style="text-align: right;">0.84575</td>
-<td style="text-align: right;">62</td>
-<td style="text-align: right;">34.5</td>
-</tr>
-<tr>
-<td style="text-align: right;">4</td>
-<td style="text-align: right;">0.84606</td>
-<td style="text-align: right;">87</td>
-<td style="text-align: right;">43.1</td>
-</tr>
-<tr>
-<td style="text-align: right;">8</td>
-<td style="text-align: right;">0.84615</td>
-<td style="text-align: right;">137</td>
-<td style="text-align: right;">58.7</td>
-</tr>
-</tbody>
-</table>
-<p><em>整理自原论文表 6/7；固定 d=272、K=2。时间是批量评估的均摊值，不是线上请求延迟。</em></p>
-<p>H=1→4 带来 +0.00066 AUC，均摊时间增加约 38.6%；H=4→8 只再增加 0.00009，时间却再增加约 36.2%。默认 H=4 的意义，是保留大部分已观察到的收益，而不是找到一个理论上的最优视角数。</p>
-<p>更有意思的比较来自深度。H=4 时增加到 K=3，可得到 0.84616 AUC、97M 稠密参数；H=8 则是 0.84615、137M。<strong>从 H=1 起步，多视角很有价值；到了 H=4，继续加视角不一定是最省参数的下一步。</strong> 不过原文缺少 K=3 的耗时，不能进一步断言它的延迟更优。</p>
-<p>训练更久也不是无成本的替代方案：四轮延长到十一轮，AUC 只增加 0.00010，LogLoss 反而变差。这提醒我们，容量、训练步数、排序效果和概率质量并不总是一起改善；只按最佳 AUC 选配置，会遗漏另一部分代价。（原文表 7）</p>
-<p>还有一个资源口径要记住：默认模型约有 628M 稀疏参数与 87M 稠密参数。多视角扩展也增加 embedding 成本，不能把 87M 当成全模型大小，再据此称其为小模型。</p>
-<h2>五、冠军结果，不能只靠架构来解释</h2>
-<p>QueryFormer 的查询桥接并没有配套一个重型全序列 Transformer。后面的轻量块用 SwiGLU 更新序列，以少量 Query 读取历史，再用参数无关的 token 置换和 FFN 融合信息。它把一部分建模能力放在查询侧，而不是让所有历史位置进行昂贵的全连接交互；这是设计与预算的配合，不是说序列间关系已经不重要。</p>
-<p>packed shared-parameter attention 将可共享计算的查询打包执行，减少重复 K/V 投影和 kernel 启动开销。H=8 的均摊评估时间约为 H=1 的 1.89 倍，说明报告的扩展成本没有按视角数线性增长。但缺少同配置的 packed/unpacked 对照，这个数字不能直接称为打包算子带来的加速倍率。（原文 §4.3、表 6）</p>
-<p>最终成绩还叠加了训练策略。转化时间辅助监督被删除后，验证 AUC 下降 0.00016；作者另外报告全量训练约 +0.0001 AUC，多教师蒸馏到单学生约 +0.0007 Test AUC。后者尤其重要：冠军推理时保持单模型成本，却吸收了训练阶段多个模型的知识。结构消融与正式成绩之间，因此还隔着训练数据和蒸馏过程。（原文 §4.4–5.1）</p>
-<p>这些增量不能跨验证／测试口径直接相加。MuonPlus、EMA、稠密特征融合、时间 embedding 等也未被完整独立消融，更适合视为共同配方，不能给每一项补写一个未经实验支持的收益。</p>
-<h2>六、读完后，最值得带走什么</h2>
-<p>QueryFormer 最可迁移的思想不是“把 MLP 全换成 attention”，而是：<strong>读取历史之前，先检查查询形成时是否已经拥有足够的匹配条件。</strong> 用户物品关系、候选相关线索、行为域背景分别补齐不同的信息，最终才组合成用于读取序列的 Query。</p>
-<p>这也给预算分配提供了一个有根据的判断。如果现有模型已经用少量 Query 压缩长序列，优先检查查询入口可能比盲目增强序列编码器更有针对性；如果入口已足够强，再考虑独立表示视角。前者改变信息选择方式，后者扩大容量，不能混成一个“多加模块就有效”的结论。</p>
-<p>证据边界同样明确：研究主要来自一个竞赛数据集，没有多种子置信区间，也未隔离反馈路径及视角互补性的具体贡献。报告的增益次序，不能保证在另一套数据上成立。</p>
-<p>归根结底，好的序列模型既要保存有用的信息，也要形成合适的问题。QueryFormer 的价值，是把后一个问题做成了明确的信息流，并用消融说明：<strong>Query 的形成过程，本身就是值得投入建模预算的地方。</strong></p>
-<h2>来源与延伸阅读</h2>
-<ul>
-<li>技术依据：<a href="https://arxiv.org/abs/2609.16548v1">QueryFormer v1</a>（机制 §4，实验表 3/4/6/7）与 <a href="https://arxiv.org/abs/2601.12681v1">HyFormer v1</a>（查询生成 §3.3）。本文未重跑训练；设计解释不等同于因果验证。原始线索来自<a href="https://mp.weixin.qq.com/s/FNdUKN6dkCtIuufu4uQa3g">腾讯广告技术公众号</a>。</li>
-<li>原图：Yuanzhe Zhou、Zhaoyang Zeng，QueryFormer v1 图 1、4、3，依据原文 CC BY 4.0 许可引用；仅裁切页面区域、缩放排版，未改变图内内容，中文图注由本文补充。</li>
-<li>中文解读写法参考：<a href="https://zhuanlan.zhihu.com/p/2020613883434472664">几野的 UniScale 解读（知乎）</a>、<a href="https://zhuanlan.zhihu.com/p/761058637">HSTU-ActionLoss 解读（知乎）</a>、<a href="https://wln20.github.io/post_html/GR-UniSeqCross/HyFormer.html">Wang-Luning 的 HyFormer 精读</a>、<a href="https://chenhuiyu.github.io/blog/generative-recommendation-16-hstu-zh/">Huiyu Chen 的 HSTU 解读</a>、<a href="https://www.changyungo.com/blog/hstu-trillion-parameter-sequential-transducers/">Changyungo 的 HSTU 解读</a>、<a href="https://p19e99.github.io/posts/paper/hyfomer/">P19E99 的 HyFormer 精读</a>。借鉴问题导向、前作比较与实验解释，不作为本文技术结论的依据；两篇知乎文章仅核对了检索可见片段，其余已阅读正文。</li>
-</ul></div>
-      <footer class="article-end"><p>克西 · 技术文章</p><a class="button secondary magnetic" href="../writing.html">返回文章列表</a></footer>
-    </article>
-  </main>
-  <footer class="site-footer wrap"><div><a class="wordmark" href="../"><span class="wordmark-spark">✦</span>克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../research.html">研究</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>
+<div class="reading-progress"></div>
+<header class="topbar"><a class="wordmark" href="../"><span class="wordmark-spark">✦</span>克西<span>.</span></a><nav aria-label="主导航"><a href="../">首页</a><a aria-current="page" href="../writing.html">文章</a><a href="../research.html">研究</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></nav><div class="top-actions"><a href="https://github.com/zzxAnthony" rel="noreferrer" target="_blank">GitHub ↗</a><button aria-label="切换明暗主题" class="theme-toggle">◐</button></div></header>
+<main class="article-shell">
+<a class="article-back" href="../writing.html">← 返回文章</a>
+<article>
+<header class="article-header">
+<p class="eyebrow">TECHNICAL NOTE / 推荐系统</p>
+<h1>TAAC工业界冠军方案QueryFormer解读</h1>
+<p class="lead">分析 QueryFormer 如何通过三次 Query 生成，将用户—候选交互、候选相关历史与行为域背景转化为更高质量的序列读取条件。</p>
+<div class="article-meta"><span>推荐系统</span><span>克西</span><time datetime="2026-10-02">2026.10.02</time><span>13 MIN READ</span></div>
+<a class="source-link" href="https://zhuanlan.zhihu.com/p/2089458009718240022" rel="noreferrer" target="_blank">知乎原文 ↗</a>
+</header>
+<div class="article-body"><p>长序列推荐常常把改进重点放在历史一侧：保留更多行为、增强序列编码器、堆叠更多层。但QueryFormer 提出了另一个问题：<b>历史里即使有足够的信息，负责读取它的 Query 是否已经知道该关注什么？</b></p><p>TAAC 2026 / KDD Cup Tencent UniRec Challenge 工业赛道冠军方案QueryFormer，正式测试 AUC 为 0.83254。它的核心不是新增一种复杂的序列编码器，而是让查询生成经历三个步骤：用户与候选先交互，候选先取一份相关历史，再由行为域背景选择上下文，形成最终查询，这种方法获得了更高质量的Query。</p><figure><div><img alt="QueryFormer 文章配图 1" decoding="async" loading="lazy" src="../assets/posts/queryformer/01.jpg"/></div><figcaption>QueryFormer架构图</figcaption></figure><p><i>左侧先更新用户／物品字段，右侧用行为初始化读取扩充上下文；生成的 Query 再进入中间的轻量处理块。</i></p><h2>一、如何充分利用上下文信息</h2><p>先来看看HyFormer是如何做的：<a href="https://arxiv.org/html/2601.12681v1" rel="noreferrer" target="_blank">HyFormer</a> 将非序列字段与池化历史拼接，经 FFN 生成多个 Query；随后查询读取长序列，与字段做 token mixing，再进入下一层。</p><p>因此，QueryFormer 要解决的不是给查询加入上下文这么宽泛的问题，而是：<b>同一份上下文，能否用更合适的结构转化为读取条件？</b></p><p>拼接 MLP 当然可以学习非线性关系，但各字段先被放入固定布局，再整体映射为 Query。QueryFormer 保留字段的 token 形态，让行为初始化的探针显式选择上下文。这是一种不同的归纳偏置：把“哪些条件对这次读取重要”放进可学习的匹配过程，而不只依赖整体投影。</p><p>更关键的是，被选择的上下文也经过了重构。它不再只是原始用户、物品字段，还包含双方交互后的表示，以及当前候选检索出的历史摘要。<b>输入条件的改善与查询生成方式的改善，是这篇方案的两个相互衔接的部分。</b></p><h2>二、三次Query生成</h2><h3>1. Co-Transformer：检索前，先让候选表示与用户有关</h3><p>假设用户既浏览运动用品，也浏览数码产品，当前候选是一双较贵的跑鞋。这个例子只是帮助理解信息流：商品的价格、类目和品牌描述的是商品本身；它们与用户消费能力、既有偏好结合后，才更接近“这件商品对这个用户意味着什么”。</p><p>Co-Transformer 用两层结构完成这一步。每层先分别整理用户字段内部、物品字段内部的关系，再做双方的交叉注意力，以门控融合结果。组内 self-attention 处理同侧字段如何共同表达语义，跨侧 cross-attention 则让表示带上另一侧的条件。</p><p><b>交互发生在历史检索之前。</b> 后面发起检索的是更新后的物品表示，而不是尚未结合用户信息的候选字段。这样，字段交互不仅服务最终预测，还参与决定从历史中取什么。</p><p>对应的消融下降分别是 0.00020 和 0.00029。两者支持了字段整理与跨侧交互的有效性，后者影响更大。不过，实验没有区分这部分收益究竟经由检索路径还是最终字段表示产生。</p><h3>2. QuerySeqCrossAttn：先找到线索，为什么还要再读历史？</h3><p>用户总体兴趣与当前候选所需的证据不是一回事。继续上面的例子，面对跑鞋候选，模型需要运动用品相关的行为线索，而不只是数码与运动兴趣混在一起的全局摘要。</p><p>因此QuerySeqCrossAttn 用更新后的物品 token 聚合作为查询，分别读取四个行为域；每域得到一个候选相关摘要。这四个摘要被追加到非序列上下文中，与用户、物品等字段一起形成 26 个 token。</p><p>这看起来已经完成了兴趣聚合，为什么还要生成 Query，再读一次历史？因为两次读取的职责不同。<b>第一次读取得到的是候选相关线索，用来改善下一步的读取条件；后续读取则利用更完整的条件，获取用于预测的序列表示。</b> 前者不是后者的替代品，而是查询形成的输入。</p><p>这种设计把历史从等待被读取的对象变成帮助决定如何更好的读取。删除该模块，AUC 下降 0.00023，说明这份摘要在完整结构里有用。</p><h3>3. SeqQueryCrossAttn：由行为域决定，该关注哪些上下文</h3><p>两个模块名称相近，方向却不同：上一模块是<b>候选读取历史</b>，这一模块是<b>行为初始化的探针读取上下文</b>。</p><p>每个行为域用 mean/max 池化摘要和初始化 FFN 构造两个探针，再让探针对扩充上下文做 cross-attention。用一个式子概括：</p><p><span class="math-display">\[q_{s,k}=\operatorname{CrossAttn}_{s}\big(q^{(0)}_{s,k},\widetilde N,\widetilde N\big),\qquad k=1,2.\]</span></p><p>其中，初始探针提供行为域背景，扩充上下文提供用户、候选及初步检索证据。行为域不同、候选不同，匹配权重也可以不同。它不预设某个字段始终重要，而是让每次查询形成时重新选择条件。四域共生成八个 Query，随后进入序列读取与 token 混合。</p><p>这里有一个容易忽略的设计理由：探针不是直接从候选出发，而是从各域行为摘要出发。候选相关信息已经放进上下文；现在由不同的行为域去选择这些信息，相当于让“域背景”和“当前匹配条件”共同决定读取方向，而不要求所有历史共享同一个候选表示。这是对结构的解释，并不意味着论文已经证明两个探针具有明确的兴趣分工。</p><p>池化仍是初始化的压缩瓶颈，但最终预测并不只依赖这个摘要：新 Query 还会回到保留的序列 token 中读取证据。<b>摘要负责形成读取条件，序列负责提供细粒度信息。</b> </p><h2>三、消融实验</h2><p>先看总体比较。在优化后的训练下，默认 QueryFormer 的验证 AUC 为 0.84606，HyFormer 为 0.84477；前者高 0.00129，稠密参数由 105.8M 降至 87.1M。</p><p>以下消融固定 H=4、d=272、K=2，训练四轮，报告最佳验证 AUC。数据采用 Round 2 的 90⁄10 Row-Group 划分，每域保留最近 256 个行为位置；</p><table><tbody><tr><th>改动</th><th>最佳 Val AUC</th><th>相对完整模型下降</th></tr><tr><td>完整模型</td><td>0.84606</td><td>—</td></tr><tr><td>attention 生成 Query 改为 MLP</td><td>0.84568</td><td>0.00038</td></tr><tr><td>删除用户／物品交叉注意力</td><td>0.84577</td><td>0.00029</td></tr><tr><td>删除候选相关历史检索</td><td>0.84583</td><td>0.00023</td></tr><tr><td>删除组内自注意力</td><td>0.84586</td><td>0.00020</td></tr><tr><td>同时删除四种机制</td><td>0.84496</td><td>0.00110</td></tr></tbody></table><p>这组结果回答了两个不同的问题。第一，查询生成并非无关紧要的入口层：替换为 MLP 造成最大单项下降，是核心改动最直接的证据。第二，前面的条件准备也有价值：在这组配置中，保留用户物品交互与候选检索都能改善效果。</p><p>每个单项消融都从完整模型出发，衡量的是其他模块存在时的边际影响。即使四项下降之和恰好等于同时删除的下降，也不能据此认定收益彼此独立；缺少组合消融。</p><figure><div><img alt="QueryFormer 文章配图 2" decoding="async" loading="lazy" src="../assets/posts/queryformer/02.jpg"/></div></figure><p><br/></p><p><i>最值得细看的是 (a)：MLP 查询生成在前三轮略占优，attention 版本在第四轮取得更高最佳值。其余子图分别检查历史检索、跨侧交互和组内自注意力。</i></p><p>曲线让结论比单个数字更具体：attention 的优势表现为该训练协议下更高的最终最佳效果，而不是从训练开始就更好。如果训练预算很短，仅凭“最大消融下降”就优先替换查询生成，未必得到同样结果。</p><h2>四、多视角扩展</h2><p>前面解决的是信息怎么流动，多视角解决的是用多少表示容量。QueryFormer 对同一输入建立 H 条独立 token 化路径，形成 (batch,H,T,d) 的表示；</p><p>独立路径让同一组异质字段与行为关系能够进入不同的表示空间。这个动机类似于避免所有关系挤在单一表示里，但“视角互补”仍是解释：论文没有展示各视角的语义分工，也没有用去相关实验隔离互补性与参数增大的作用。</p><figure><div><img alt="QueryFormer 文章配图 3" decoding="async" loading="lazy" src="../assets/posts/queryformer/03.jpg"/></div></figure><p><i>在 d=272 下增加 H，最终 AUC 与 LogLoss 都改善。</i></p><p>把成本放回来，结论就清楚得多：</p><table><tbody><tr><th>H</th><th>Val AUC</th><th>稠密参数 M</th><th>批量均摊评估时间 μs/样本</th></tr><tr><td>1</td><td>0.84540</td><td>50</td><td>31.1</td></tr><tr><td>2</td><td>0.84575</td><td>62</td><td>34.5</td></tr><tr><td>4</td><td>0.84606</td><td>87</td><td>43.1</td></tr><tr><td>8</td><td>0.84615</td><td>137</td><td>58.7</td></tr></tbody></table><p>H=1→4 带来 +0.00066 AUC，均摊时间增加约 38.6%；H=4→8 只再增加 0.00009，时间却再增加约 36.2%。默认 H=4 的意义，是保留大部分已观察到的收益。</p><p>更有意思的比较来自深度。H=4 时增加到 K=3，可得到 0.84616 AUC、97M 稠密参数；H=8 则是 0.84615、137M。<b>从 H=1 起步，多视角很有价值；到了 H=4，继续加视角不一定是最省参数的下一步。</b> </p><p>训练更久也不是无成本的替代方案：四轮延长到十一轮，AUC 只增加 0.00010，LogLoss 反而变差。这提醒我们，容量、训练步数、排序效果和概率质量并不总是一起改善；只按最佳 AUC 选配置，会遗漏另一部分代价。</p><h2>五、启示</h2><p>先来回顾一下QueryFormer 的主要改进：</p><ul><li>QueryFormer 的查询桥接并没有配套一个重型全序列 Transformer。后面的轻量块用 SwiGLU 更新序列，以少量 Query 读取历史，再用参数无关的 token 置换和 FFN 融合信息。它把一部分建模能力放在查询侧，而不是让所有历史位置进行昂贵的全连接交互。</li><li>packed shared-parameter attention 将可共享计算的查询打包执行，减少重复 K/V 投影和 kernel 启动开销。H=8 的均摊评估时间约为 H=1 的 1.89 倍。</li><li>最终成绩还叠加了训练策略。转化时间辅助监督被删除后，验证 AUC 下降 0.00016；作者另外报告全量训练约 +0.0001 AUC，多教师蒸馏到单学生约 +0.0007 Test AUC。后者尤其重要：冠军推理时保持单模型成本，却吸收了训练阶段多个模型的知识。</li></ul><p>QueryFormer 最可迁移的思想不是“把 MLP 全换成 attention”，而是：<b>读取历史之前，先检查查询形成时是否已经拥有足够的匹配条件。</b> 用户物品关系、候选相关线索、行为域背景分别补齐不同的信息，最终才组合成用于读取序列的 Query。</p><p>归根结底，好的序列模型既要保存有用的信息，也要形成合适的问题。QueryFormer 的价值，是把后一个问题做成了明确的信息流，并说明：<b>Query 的形成过程，本身就是值得投入关注的地方。特征交互的价值，不仅取决于交互了什么，还取决于何时交互。</b></p></div>
+<footer class="article-end"><p>克西 · 技术文章</p><a class="button secondary magnetic" href="../writing.html">返回文章列表</a></footer>
+</article>
+</main>
+<footer class="site-footer wrap"><div><a class="wordmark" href="../"><span class="wordmark-spark">✦</span>克西<span>.</span></a><p>研究、论文与技术文章。</p></div><div class="footer-links"><a href="../writing.html">文章</a><a href="../research.html">研究</a><a href="../publications.html">论文</a><a href="../about.html">履历</a></div><p class="copyright">© <span id="year">2026</span> 克西</p></footer>
 </body>
 </html>
